@@ -387,15 +387,16 @@ static enum jump_label_type jump_label_type(struct jump_entry *entry)
 
 static void __jump_label_update(struct static_key *key,
 				struct jump_entry *entry,
-				struct jump_entry *stop)
+				struct jump_entry *stop,
+				bool init)
 {
 	for (; (entry < stop) && (jump_entry_key(entry) == key); entry++) {
 		/*
 		 * An entry->code of 0 indicates an entry which has been
 		 * disabled because it was in an init text area.
 		 */
-		if (entry->code) {
-			if (kernel_text_address(entry->code))
+		if (init || !jump_entry_is_init(entry)) {
+			if (kernel_text_address(jump_entry_code(entry)))
 				arch_jump_label_transform(entry, jump_label_type(entry));
 			else
 				WARN_ONCE(1, "can't patch jump_label at %pS",
@@ -433,6 +434,9 @@ void __init jump_label_init(void)
 		/* rewrite NOPs */
 		if (jump_label_type(iter) == JUMP_LABEL_NOP)
 			arch_jump_label_transform_static(iter, JUMP_LABEL_NOP);
+
+		if (init_section_contains((void *)jump_entry_code(iter), 1))
+			jump_entry_set_init(iter);
 
 		iterk = jump_entry_key(iter);
 		if (iterk == key)
@@ -525,7 +529,8 @@ static void __jump_label_mod_update(struct static_key *key)
 			stop = __stop___jump_table;
 		else
 			stop = m->jump_entries + m->num_jump_entries;
-		__jump_label_update(key, mod->entries, stop);
+		__jump_label_update(key, mod->entries, stop,
+				    m->state == MODULE_STATE_COMING);
 	}
 }
 
@@ -571,6 +576,9 @@ static int jump_label_add_module(struct module *mod)
 	for (iter = iter_start; iter < iter_stop; iter++) {
 		struct static_key *iterk;
 
+		if (within_module_init(jump_entry_code(iter), mod))
+			jump_entry_set_init(iter);
+
 		iterk = jump_entry_key(iter);
 		if (iterk == key)
 			continue;
@@ -606,7 +614,7 @@ static int jump_label_add_module(struct module *mod)
 
 		/* Only update if we've changed from our initial state */
 		if (jump_label_type(iter) != jump_label_init_type(iter))
-			__jump_label_update(key, iter, iter_stop);
+			__jump_label_update(key, iter, iter_stop, true);
 	}
 
 	return 0;
@@ -695,9 +703,6 @@ jump_label_module_notify(struct notifier_block *self, unsigned long val,
 	case MODULE_STATE_GOING:
 		jump_label_del_module(mod);
 		break;
-	case MODULE_STATE_LIVE:
-		jump_label_invalidate_module_init(mod);
-		break;
 	}
 
 	jump_label_unlock();
@@ -767,7 +772,8 @@ static void jump_label_update(struct static_key *key)
 	entry = static_key_entries(key);
 	/* if there are no users, entry can be NULL */
 	if (entry)
-		__jump_label_update(key, entry, stop);
+		__jump_label_update(key, entry, stop,
+				    system_state < SYSTEM_RUNNING);
 }
 
 #ifdef CONFIG_STATIC_KEYS_SELFTEST

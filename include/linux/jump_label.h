@@ -141,7 +141,7 @@ static inline unsigned long jump_entry_target(const struct jump_entry *entry)
 
 static inline struct static_key *jump_entry_key(const struct jump_entry *entry)
 {
-	long offset = entry->key & ~1L;
+	long offset = entry->key & ~3L;
 
 	return (struct static_key *)((unsigned long)&entry->key + offset);
 }
@@ -160,7 +160,7 @@ static inline unsigned long jump_entry_target(const struct jump_entry *entry)
 
 static inline struct static_key *jump_entry_key(const struct jump_entry *entry)
 {
-	return (struct static_key *)((unsigned long)entry->key & ~1UL);
+	return (struct static_key *)((unsigned long)entry->key & ~3UL);
 }
 
 #endif
@@ -172,12 +172,12 @@ static inline bool jump_entry_is_branch(const struct jump_entry *entry)
 
 static inline bool jump_entry_is_init(const struct jump_entry *entry)
 {
-	return entry->code == 0;
+	return (unsigned long)entry->key & 2UL;
 }
 
 static inline void jump_entry_set_init(struct jump_entry *entry)
 {
-	entry->code = 0;
+	entry->key |= 2;
 }
 
 #endif
