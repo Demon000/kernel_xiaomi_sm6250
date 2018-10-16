@@ -53,6 +53,9 @@ enum qlock_stats {
 	qstat_pv_wait_early,
 	qstat_pv_wait_head,
 	qstat_pv_wait_node,
+	qstat_lock_idx1,
+	qstat_lock_idx2,
+	qstat_lock_idx3,
 	qstat_num,	/* Total number of statistical counters */
 	qstat_reset_cnts = qstat_num,
 };
@@ -79,6 +82,9 @@ static const char * const qstat_names[qstat_num + 1] = {
 	[qstat_pv_wait_early]      = "pv_wait_early",
 	[qstat_pv_wait_head]       = "pv_wait_head",
 	[qstat_pv_wait_node]       = "pv_wait_node",
+	[qstat_lock_idx1]	   = "lock_index1",
+	[qstat_lock_idx2]	   = "lock_index2",
+	[qstat_lock_idx3]	   = "lock_index3",
 	[qstat_reset_cnts]         = "reset_counters",
 };
 
