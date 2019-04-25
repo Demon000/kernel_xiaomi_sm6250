@@ -32,7 +32,7 @@ struct keyreset_state {
 
 static void do_restart(struct work_struct *unused)
 {
-	orderly_reboot();
+	machine_restart("recovery");
 }
 
 static void do_reset_fn(void *priv)
