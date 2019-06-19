@@ -36,7 +36,6 @@
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
-//#include <linux/wakelock.h>
 #include <linux/proc_fs.h>
 #include <linux/notifier.h>
 #include <linux/fb.h>
@@ -66,7 +65,7 @@ static struct kthread_worker fp_boost_worker;
 static struct task_struct *fp_boost_worker_thread;
 extern int fpsensor;
 
-static const char * const pctl_names[] = {
+static const char * pctl_names[] = {
 	"fpc1020_reset_reset",
 	"fpc1020_reset_active",
 	"fpc1020_irq_active",
@@ -186,6 +185,7 @@ static ssize_t clk_enable_set(struct device *dev,
 	return count;
 }
 static DEVICE_ATTR(clk_enable, S_IWUSR, NULL, clk_enable_set);
+
 static ssize_t fingerdown_wait_set(struct device *dev,
 	struct device_attribute *attr,
 	const char *buf, size_t count)
@@ -484,7 +484,6 @@ static ssize_t irq_ack(struct device *dev,
 	struct fpc1020_data *fpc1020 = dev_get_drvdata(dev);
 
 	dev_dbg(fpc1020->dev, "%s\n", __func__);
-	//pr_info( "%s\n", __func__);
 
 	return count;
 }
@@ -511,7 +510,7 @@ static void notification_work(struct kthread_work *worker)
 {
 	pr_debug("fpc %s:unblank\n", __func__);
 	dsi_bridge_interface_enable(FP_UNLOCK_REJECTION_TIMEOUT);
- }
+}
 
 static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 {
@@ -520,17 +519,14 @@ static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 	dev_dbg(fpc1020->dev, "%s\n", __func__);
 
 	if (atomic_read(&fpc1020->wakeup_enabled)) {
-		//wake_lock_timeout(&fpc1020->ttw_wl,
-		//			msecs_to_jiffies(FPC_TTW_HOLD_TIME));
 		pm_wakeup_event(fpc1020->dev, FPC_TTW_HOLD_TIME);//for kernel 4.9
 	}
 
 	sysfs_notify(&fpc1020->dev->kobj, NULL, dev_attr_irq.attr.name);
 	if (fpc1020->wait_finger_down && fpc1020->fb_black) {
-		pr_info("fpc schedule_work enter\n");
 		fpc1020->wait_finger_down = false;
 		kthread_queue_work(&fp_boost_worker, &fpc1020->worker);
-	}  
+	}
 	return IRQ_HANDLED;
 }
 
