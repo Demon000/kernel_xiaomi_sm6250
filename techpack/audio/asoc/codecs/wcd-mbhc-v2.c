@@ -1668,6 +1668,7 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 		mbhc->fsa_nb.notifier_call = wcd_mbhc_usbc_ana_event_handler;
 		mbhc->fsa_nb.priority = 0;
 		rc = fsa4480_reg_notifier(&mbhc->fsa_nb, mbhc->fsa_np);
+
 	}
 
 	return rc;
