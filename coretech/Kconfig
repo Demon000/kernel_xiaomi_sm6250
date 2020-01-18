@@ -1,0 +1,3 @@
+config AIGOV
+	default y
+	bool "A governor which using ai predicted info as input"
