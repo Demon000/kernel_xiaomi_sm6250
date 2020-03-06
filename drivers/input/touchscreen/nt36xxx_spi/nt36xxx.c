@@ -43,6 +43,12 @@
 #include <linux/jiffies.h>
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
+#if WAKEUP_GESTURE
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+#include <linux/input/tp_common.h>
+#endif
+#endif
+
 #ifdef CHECK_TOUCH_VENDOR
 extern char *saved_command_line;
 
@@ -61,11 +67,6 @@ uint8_t esd_retry = 0;
 #if NVT_TOUCH_EXT_PROC
 extern int32_t nvt_extra_proc_init(void);
 extern void nvt_extra_proc_deinit(void);
-#endif
-
-#if NVT_TOUCH_MP
-extern int32_t nvt_mp_proc_init(void);
-extern void nvt_mp_proc_deinit(void);
 #endif
 
 /*function description*/
@@ -180,29 +181,33 @@ int nvt_gesture_switch(struct input_dev *dev, unsigned int type, unsigned int co
 	return 0;
 }
 
-static int32_t nvt_ts_resume(struct device *dev);
-static int32_t nvt_ts_suspend(struct device *dev);
-
-typedef int(*touchpanel_recovery_cb_p_t)(void);
-extern int set_touchpanel_recovery_callback(touchpanel_recovery_cb_p_t cb);
-
-/* Fix Touch/Fingerprint wakeup crash issue */
-int nvt_ts_recovery_callback(void)
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+static ssize_t double_tap_show(struct kobject *kobj,
+                               struct kobj_attribute *attr, char *buf)
 {
-	if (unlikely(bTouchIsAwake)) {
-		NVT_ERR("touch is awake, can not to set\n");
-		return -EPERM;
-	}
-	if (ts->is_gesture_mode) {
-		NVT_LOG("recovery touch 'Double Click' mode start\n");
-		nvt_ts_resume(&ts->client->dev);
-		nvt_ts_suspend(&ts->client->dev);
-		NVT_LOG("recovery touch 'Double Click' mode end\n");
-	}
-	return 0;
+    return sprintf(buf, "%d\n", ts->is_gesture_mode);
 }
-EXPORT_SYMBOL(nvt_ts_recovery_callback);
 
+static ssize_t double_tap_store(struct kobject *kobj,
+                                struct kobj_attribute *attr, const char *buf,
+                                size_t count)
+{
+    int rc, val;
+    
+    rc = kstrtoint(buf, 10, &val);
+    if (rc)
+    return -EINVAL;
+    
+    ts->is_gesture_mode = !!val;
+    set_lcd_reset_gpio_keep_high(!!val);
+    return count;
+}
+
+static struct tp_common_ops double_tap_ops = {
+    .show = double_tap_show,
+    .store = double_tap_store
+};
+#endif
 #endif
 /*function description*/
 #if NVT_USB_PLUGIN
@@ -782,12 +787,10 @@ info_retry:
 	switch(ts->touch_vendor_id) {
 	case TP_VENDOR_TIANMA:
 		sprintf(tp_info_buf, "[Vendor]tianma,[FW]0x%02x,[IC]nt36675\n", ts->fw_ver);
-		update_lct_tp_info(tp_info_buf, NULL);
 		break;
 	}
 #else
 	sprintf(tp_info_buf, "[Vendor]unknow,[FW]0x%02x,[IC]nt36675\n", ts->fw_ver);
-	update_lct_tp_info(tp_info_buf, NULL);
 #endif
 
 	//---Get Novatek PID---
@@ -1304,7 +1307,6 @@ int32_t nvt_check_palm(uint8_t input_id, uint8_t *data)
 	uint8_t palm_state = data[3];
 	uint8_t keycode = 0;
 
-	if (get_lct_tp_palm_status()) {
 		if ((input_id == DATA_PROTOCOL) && (func_type == FUNCPAGE_PALM)) {
 			ret = palm_state;
 			if (palm_state == PACKET_PALM_ON) {
@@ -1325,7 +1327,6 @@ int32_t nvt_check_palm(uint8_t input_id, uint8_t *data)
 			input_report_key(ts->input_dev, keycode, 0);
 			input_sync(ts->input_dev);
 		}
-	}
 	return ret;
 }
 #define POINT_DATA_LEN 65
@@ -1483,12 +1484,6 @@ static irqreturn_t nvt_ts_work_func(int irq, void *data)
 		input_mt_sync(ts->input_dev);
 	}
 #endif /* MT_PROTOCOL_B */
-
-#if LCT_TP_PALM_EN
-	nvt_check_palm(input_id, point_data);
-	//mutex_unlock(&ts->lock);
-	//return IRQ_HANDLED;
-#endif
 
 #if TOUCH_KEY_NUM > 0
 	if (point_data[61] == 0xF8) {
@@ -1723,452 +1718,6 @@ exit:
 }
 #endif
 
-#if LCT_TP_WORK_EN
-static void nvt_ts_release_all_finger(void)
-{
-	struct input_dev *input_dev = ts->input_dev;
-#if MT_PROTOCOL_B
-	u32 finger_count = 0;
-	u32 max_touches = ts->max_touch_num;
-#endif
-
-	mutex_lock(&ts->lock);
-#if MT_PROTOCOL_B
-	for (finger_count = 0; finger_count < max_touches; finger_count++) {
-		input_mt_slot(input_dev, finger_count);
-		input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, false);
-	}
-#else
-	input_mt_sync(input_dev);
-#endif
-	input_report_key(input_dev, BTN_TOUCH, 0);
-	input_sync(input_dev);
-	mutex_unlock(&ts->lock);
-	NVT_LOG("release all finger\n");
-}
-
-int lct_nvt_tp_work_callback(bool en)
-{
-	nvt_irq_enable(en);
-	if (!en) nvt_ts_release_all_finger();
-	set_lct_tp_work_status(en);
-	NVT_LOG("%s Touchpad\n", en?"Enable":"Disable");
-	return 0;
-}
-#endif
-#if LCT_TP_PALM_EN
-int lct_nvt_tp_palm_callback(bool en)
-{
-	uint8_t buf[8] = {0};
-	int32_t ret = 0;
-	msleep(400);
-	NVT_LOG("init write_buf[8] = {0}");
-	if( !bTouchIsAwake ) {
-		NVT_ERR("tp is suspended, can not to set!");
-		goto exit;
-	}
-	NVT_LOG("en=%d",en);
-	msleep(35);
-
-	//---set xdata index to EVENT BUF ADDR---
-	ret = nvt_set_page(ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_HOST_CMD);
-	if (ret < 0) {
-		NVT_ERR("Set event buffer index fail!");
-		goto exit;
-	}
-	buf[0] = EVENT_MAP_HOST_CMD;
-	buf[1] = 0x74;
-	buf[2] = 0x00;
-	if (en) {
-		NVT_LOG("screen is not locked");
-	} else {
-		NVT_LOG("screen is locked");
-		buf[1] = buf[1]-1;
-	}
-	ret = CTP_SPI_WRITE(ts->client,buf,3);
-	if (ret < 0) {
-		NVT_ERR("Write palm command fail!");
-		goto exit;
-	}
-	set_lct_tp_palm_status(en);
-	NVT_LOG("%S PALM",en ? "Disable" : "Enable");
-
-exit:
-	return 0;
-
-}
-#endif
-
-#if LCT_TP_GRIP_AREA_EN
-static int lct_tp_get_screen_angle_callback(void)
-{
-	uint8_t tmp[8] = {0};
-	int32_t ret = -EIO;
-	uint8_t edge_reject_switch;
-
-	if (!bTouchIsAwake) {
-		NVT_ERR("tp is suspended\n");
-		return ret;
-	}
-
-	NVT_LOG("++\n");
-
-	mutex_lock(&ts->lock);
-
-	msleep(35);
-
-	//--set xdata index to EVENT_BUF_ADDR ---
-	ret = nvt_set_page(ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_HOST_CMD);
-	if (ret < 0) {
-		NVT_ERR("Set event buffer index fail!\n");
-		goto out;
-	}
-
-	tmp[0] = 0x5C;
-	tmp[1] = 0x00;
-	ret = CTP_SPI_READ(ts->client, tmp, 2);
-	if (ret < 0) {
-		NVT_ERR("Read edge reject switch status fail!\n");
-		goto out;
-	}
-
-	edge_reject_switch = ((tmp[1] >> 5) & 0x03);
-	switch (edge_reject_switch) {
-	case 1: ret = 0; break;
-	case 2: ret = 270; break;
-	case 3: ret = 90; break;
-	default: break;
-	}
-	NVT_LOG("edge_reject_switch = %d, angle = %d\n", edge_reject_switch, ret);
-
-out:
-	mutex_unlock(&ts->lock);
-	NVT_LOG("--\n");
-	return ret;
-}
-
-static int lct_tp_set_screen_angle_callback(int angle)
-{
-	uint8_t tmp[3];
-	int ret = -EIO;
-
-	if (!bTouchIsAwake) {
-		NVT_ERR("tp is suspended\n");
-		return ret;
-	}
-
-	NVT_LOG("++\n");
-
-	mutex_lock(&ts->lock);
-
-	//--set xdata index to EVENT_BUF_ADDR ---
-	ret = nvt_set_page(ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_HOST_CMD);
-	if (ret < 0) {
-		NVT_ERR("Set event buffer index fail!\n");
-		goto out;
-	}
-
-	tmp[0] = EVENT_MAP_HOST_CMD;
-	if (angle == 90) {
-		tmp[1] = 0xBC;
-	} else if (angle == 270) {
-		tmp[1] = 0xBB;
-	} else {
-		tmp[1] = 0xBA;
-	}
-	ret = CTP_SPI_WRITE(ts->client, tmp, 2);
-	if (ret < 0) {
-		NVT_LOG("i2c read error!\n");
-		goto out;
-	}
-	ret = 0;
-
-out:
-	mutex_unlock(&ts->lock);
-	NVT_LOG("--\n");
-	return ret;
-}
-#endif
-
-/*function description*/
-#ifdef CONFIG_TOUCHSCREEN_AAABBB_TOUCHFEATURE
-
-static struct aaabbb_touch_interface aaabbb_touch_interfaces;
-
-int32_t nvt_aaabbb_read_reg(uint8_t *read_buf)
-{
-	uint8_t buf[8] = {0};
-	int32_t ret = 0;
-	msleep(35);
-
-	mutex_lock(&ts->reg_lock);
-
-	//---set xdata index to EVENT BUF ADDR---
-	nvt_set_page(ts->mmap->EVENT_BUF_ADDR | 0x5C);
-
-	// read reg_addr:0x21C5C
-	buf[0] = 0x5C;
-	buf[1] = 0x00;
-
-	ret = CTP_SPI_READ(ts->client, buf, 2);
-
-	*read_buf = ((buf[1] >> 2) & 0xFF);         // 0x21C5C 的內容會讀取放在 buf[1]
-	NVT_LOG("read_buf = %d\n", *read_buf);
-
-	mutex_unlock(&ts->reg_lock);
-
-	return ret;
-
-}
-
-
-int32_t nvt_aaabbb_write_reg(uint8_t write_buf_high, uint8_t write_buf_low)
-{
-
-	int32_t ret = 0;
-	uint8_t buf[8] = {0};
-
-	NVT_LOG("write_buf[1] = 0x%x, write_buf[2] = 0x%x,\n", write_buf_high, write_buf_low);
-	mutex_lock(&ts->reg_lock);
-
-	//---set xdata index to EVENT BUF ADDR---
-	nvt_set_page(ts->mmap->EVENT_BUF_ADDR | 0X50);
-
-	// Write 0x7D@offset 0x50, 0x51@offset 0x51
-	buf[0] = EVENT_MAP_HOST_CMD;    // write from 0x50
-	buf[1] = write_buf_high;    //write into 0x50
-	buf[2] = write_buf_low;		//write info 0x51
-
-	NVT_LOG("buf[0] = 0x%x, buf[1] = 0x%x, buf[2] = 0x%x\n", buf[0], buf[1], buf[2]);
-	ret = CTP_SPI_WRITE(ts->client, buf, 3);
-
-	mutex_unlock(&ts->reg_lock);
-
-	return ret;
-
-}
-
-static void nvt_init_touchmode_data(void)
-{
-	int i;
-
-	NVT_LOG("%s,ENTER\n", __func__);
-	/* Touch Game Mode Switch */
-	aaabbb_touch_interfaces.touch_mode[Touch_Game_Mode][GET_DEF_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Game_Mode][GET_MAX_VALUE] = 1;
-	aaabbb_touch_interfaces.touch_mode[Touch_Game_Mode][GET_MIN_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Game_Mode][SET_CUR_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Game_Mode][GET_CUR_VALUE] = 0;
-
-	/* Active Mode */
-	aaabbb_touch_interfaces.touch_mode[Touch_Active_MODE][GET_MAX_VALUE] = 1;
-	aaabbb_touch_interfaces.touch_mode[Touch_Active_MODE][GET_MIN_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Active_MODE][GET_DEF_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Active_MODE][SET_CUR_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Active_MODE][GET_CUR_VALUE] = 0;
-
-	/* sensivity */
-	aaabbb_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][GET_MAX_VALUE] = 50;
-	aaabbb_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][GET_MIN_VALUE] = 35;
-	aaabbb_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][GET_DEF_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][SET_CUR_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][GET_CUR_VALUE] = 0;
-
-	/*  Tolerance */
-	aaabbb_touch_interfaces.touch_mode[Touch_Tolerance][GET_MAX_VALUE] = 255;
-	aaabbb_touch_interfaces.touch_mode[Touch_Tolerance][GET_MIN_VALUE] = 64;
-	aaabbb_touch_interfaces.touch_mode[Touch_Tolerance][GET_DEF_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Tolerance][SET_CUR_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Tolerance][GET_CUR_VALUE] = 0;
-	/* edge filter orientation*/
-	aaabbb_touch_interfaces.touch_mode[Touch_Panel_Orientation][GET_MAX_VALUE] = 3;
-	aaabbb_touch_interfaces.touch_mode[Touch_Panel_Orientation][GET_MIN_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Panel_Orientation][GET_DEF_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Panel_Orientation][SET_CUR_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Panel_Orientation][GET_CUR_VALUE] = 0;
-
-	/* edge filter area*/
-	aaabbb_touch_interfaces.touch_mode[Touch_Edge_Filter][GET_MAX_VALUE] = 3;
-	aaabbb_touch_interfaces.touch_mode[Touch_Edge_Filter][GET_MIN_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Edge_Filter][GET_DEF_VALUE] = 2;
-	aaabbb_touch_interfaces.touch_mode[Touch_Edge_Filter][SET_CUR_VALUE] = 0;
-	aaabbb_touch_interfaces.touch_mode[Touch_Edge_Filter][GET_CUR_VALUE] = 0;
-
-
-	for (i = 0; i < Touch_Mode_NUM; i++) {
-		NVT_LOG("mode:%d, set cur:%d, get cur:%d, def:%d min:%d max:%d\n",
-				i,
-				aaabbb_touch_interfaces.touch_mode[i][SET_CUR_VALUE],
-				aaabbb_touch_interfaces.touch_mode[i][GET_CUR_VALUE],
-				aaabbb_touch_interfaces.touch_mode[i][GET_DEF_VALUE],
-				aaabbb_touch_interfaces.touch_mode[i][GET_MIN_VALUE],
-				aaabbb_touch_interfaces.touch_mode[i][GET_MAX_VALUE]);
-	}
-
-	return;
-}
-
-
-static int nvt_set_cur_value(int nvt_mode, int nvt_value)
-{
-
-	uint8_t nvt_game_value[2] = {0};
-	uint8_t temp_value = 0;
-	uint8_t reg_value = 0;
-	uint8_t ret = 0;
-
-	if (nvt_mode >= Touch_Mode_NUM && nvt_mode < 0) {
-		NVT_ERR("%s, nvt mode is error:%d", __func__, nvt_mode);
-		return -EINVAL;
-	} else if (aaabbb_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE] >
-			aaabbb_touch_interfaces.touch_mode[nvt_mode][GET_MAX_VALUE]) {
-
-		aaabbb_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE] =
-			aaabbb_touch_interfaces.touch_mode[nvt_mode][GET_MAX_VALUE];
-
-	} else if (aaabbb_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE] <
-			aaabbb_touch_interfaces.touch_mode[nvt_mode][GET_MIN_VALUE]) {
-
-		aaabbb_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE] =
-			aaabbb_touch_interfaces.touch_mode[nvt_mode][GET_MIN_VALUE];
-	}
-
-	aaabbb_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE] = nvt_value;
-
-	NVT_LOG("%s,nvt_mode:%d,nvt_vlue:%d", __func__, nvt_mode, nvt_value);
-
-	switch (nvt_mode) {
-	case Touch_Game_Mode:
-		break;
-	case Touch_Active_MODE:
-		break;
-	case Touch_UP_THRESHOLD:
-		/* 0,1,2 = default,no hover,strong hover reject*/
-		temp_value = aaabbb_touch_interfaces.touch_mode[Touch_UP_THRESHOLD][SET_CUR_VALUE];
-		if (temp_value >= 0 && temp_value < 35)
-			reg_value = 3;
-		else if (temp_value > 35 && temp_value <= 40)
-			reg_value = 0;
-		else if (temp_value > 40 && temp_value <= 45)
-			reg_value = 1;
-		else if (temp_value > 45 && temp_value <= 50)
-			reg_value = 2;
-		else
-			reg_value = 3;
-
-		nvt_game_value[0] = 0x71;
-		nvt_game_value[1] = reg_value;
-		break;
-	case Touch_Tolerance:
-		/* jitter 0,1,2,3,4,5 = default,weakest,weak,mediea,strong,strongest*/
-		temp_value = aaabbb_touch_interfaces.touch_mode[Touch_Tolerance][SET_CUR_VALUE];
-		if (temp_value >= 0 && temp_value <= 80)
-			reg_value = 0;
-		else if (temp_value > 80 && temp_value <= 150)
-			reg_value = 1;
-		else if (temp_value > 150 && temp_value <= 255)
-			reg_value = 2;
-
-		nvt_game_value[0] = 0x70;
-		nvt_game_value[1] = reg_value;
-		break;
-	case Touch_Edge_Filter:
-		/* filter 0,1,2,3,4,5,6,7,8 = default,1,2,3,4,5,6,7,8 level*/
-		temp_value = aaabbb_touch_interfaces.touch_mode[Touch_Edge_Filter][SET_CUR_VALUE];
-		reg_value = temp_value;
-
-		nvt_game_value[0] = 0x72;
-		nvt_game_value[1] = reg_value;
-		break;
-	case Touch_Panel_Orientation:
-		/* 0,1,2,3 = 0, 90, 180,270 */
-		temp_value = aaabbb_touch_interfaces.touch_mode[Touch_Panel_Orientation][SET_CUR_VALUE];
-		if (temp_value == 0 || temp_value == 2) {
-			nvt_game_value[0] = 0xBA;
-			nvt_game_value[1] = 0x00;
-		} else if (temp_value == 1) {
-			nvt_game_value[0] = 0xBB;
-			nvt_game_value[1] = 0x00;
-		} else if (temp_value == 3) {
-			nvt_game_value[0] = 0xBC;
-			nvt_game_value[1] = 0x00;
-		}
-		break;
-	default:
-		/* Don't support */
-		break;
-
-	};
-
-	NVT_LOG("0000 mode:%d, value:%d,temp_value:%d, game value:0x%x,0x%x",
-			nvt_mode, nvt_value, temp_value, nvt_game_value[0], nvt_game_value[1]);
-
-	aaabbb_touch_interfaces.touch_mode[nvt_mode][GET_CUR_VALUE] =
-		aaabbb_touch_interfaces.touch_mode[nvt_mode][SET_CUR_VALUE];
-	if (aaabbb_touch_interfaces.touch_mode[Touch_Game_Mode][SET_CUR_VALUE]) {
-
-		ret = nvt_aaabbb_write_reg(nvt_game_value[0], nvt_game_value[1]);
-		if (ret < 0) {
-			NVT_ERR("change game mode fail");
-		}
-	}
-	return 0;
-}
-
-static int nvt_get_mode_value(int mode, int value_type)
-{
-	int value = -1;
-
-	if (mode < Touch_Mode_NUM && mode >= 0)
-		value = aaabbb_touch_interfaces.touch_mode[mode][value_type];
-	else
-		NVT_ERR("%s, don't support\n", __func__);
-
-	return value;
-}
-
-static int nvt_get_mode_all(int mode, int *value)
-{
-	if (mode < Touch_Mode_NUM && mode >= 0) {
-		value[0] = aaabbb_touch_interfaces.touch_mode[mode][GET_CUR_VALUE];
-		value[1] = aaabbb_touch_interfaces.touch_mode[mode][GET_DEF_VALUE];
-		value[2] = aaabbb_touch_interfaces.touch_mode[mode][GET_MIN_VALUE];
-		value[3] = aaabbb_touch_interfaces.touch_mode[mode][GET_MAX_VALUE];
-	} else {
-		NVT_ERR("%s, don't support\n",  __func__);
-	}
-	NVT_LOG("%s, mode:%d, value:%d:%d:%d:%d\n", __func__, mode, value[0],
-			value[1], value[2], value[3]);
-
-	return 0;
-}
-
-static int nvt_reset_mode(int mode)
-{
-	int i = 0;
-
-	NVT_LOG("enter reset mode\n");
-
-	if (mode < Touch_Mode_NUM && mode > 0) {
-		aaabbb_touch_interfaces.touch_mode[mode][SET_CUR_VALUE] =
-			aaabbb_touch_interfaces.touch_mode[mode][GET_DEF_VALUE];
-		nvt_set_cur_value(mode, aaabbb_touch_interfaces.touch_mode[mode][SET_CUR_VALUE]);
-	} else if (mode == 0) {
-		for (i = Touch_Mode_NUM-1; i >= 0; i--) {
-			aaabbb_touch_interfaces.touch_mode[i][SET_CUR_VALUE] =
-				aaabbb_touch_interfaces.touch_mode[i][GET_DEF_VALUE];
-			nvt_set_cur_value(i, aaabbb_touch_interfaces.touch_mode[mode][SET_CUR_VALUE]);
-		}
-	} else {
-		NVT_ERR("%s, don't support\n",  __func__);
-	}
-
-	NVT_ERR("%s, mode:%d\n",  __func__, mode);
-
-	return 0;
-}
-#endif
-
 /*******************************************************
 Description:
 	Novatek touchscreen driver probe function.
@@ -2355,6 +1904,13 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	for (retry = 0; retry < (sizeof(gesture_key_array) / sizeof(gesture_key_array[0])); retry++) {
 		input_set_capability(ts->input_dev, EV_KEY, gesture_key_array[retry]);
 	}
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+    ret = tp_common_set_double_tap_ops(&double_tap_ops);
+    if (ret < 0) {
+        NVT_ERR("%s: Failed to create double_tap node err=%d\n",
+                __func__, ret);
+    }
+#endif
 #endif
 
 	sprintf(ts->phys, "input/ts");
@@ -2375,7 +1931,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		NVT_LOG("int_trigger_type=%d\n", ts->int_trigger_type);
 		ts->irq_enabled = true;
 		ret = request_threaded_irq(client->irq, NULL, nvt_ts_work_func,
-				ts->int_trigger_type | IRQF_ONESHOT | IRQF_PERF_CRITICAL, NVT_SPI_NAME, ts);
+				ts->int_trigger_type | IRQF_ONESHOT, NVT_SPI_NAME, ts);
 		if (ret != 0) {
 			NVT_ERR("request irq failed. ret=%d\n", ret);
 			goto err_int_request_failed;
@@ -2431,62 +1987,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	}
 #endif
 
-#if NVT_TOUCH_MP
-	ret = nvt_mp_proc_init();
-	if (ret != 0) {
-		NVT_ERR("nvt mp proc init failed. ret=%d\n", ret);
-		goto err_mp_proc_init_failed;
-	}
-#endif
-
-	ret = init_lct_tp_info("[Vendor]unkown,[FW]unkown,[IC]unkown\n", NULL);
-	if (ret < 0) {
-		NVT_ERR("init_lct_tp_info Failed!\n");
-		goto err_init_lct_tp_info_failed;
-	} else {
-		NVT_LOG("init_lct_tp_info Succeeded!\n");
-	}
-
-#if WAKEUP_GESTURE
-	ret = init_lct_tp_gesture(lct_nvt_tp_gesture_callback);
-	if (ret < 0) {
-		NVT_ERR("init_lct_tp_gesture Failed!\n");
-		goto err_init_lct_tp_gesture_failed;
-	} else {
-		NVT_LOG("init_lct_tp_gesture Succeeded!\n");
-	}
-#endif
-
-#if LCT_TP_GRIP_AREA_EN
-	ret = init_lct_tp_grip_area(lct_tp_set_screen_angle_callback, lct_tp_get_screen_angle_callback);
-	if (ret < 0) {
-		NVT_ERR("init_lct_tp_grip_area Failed!\n");
-		goto err_init_lct_tp_grip_area_failed;
-	} else {
-		NVT_LOG("init_lct_tp_grip_area Succeeded!\n");
-	}
-#endif
-
-#if LCT_TP_WORK_EN
-	ret = init_lct_tp_work(lct_nvt_tp_work_callback);
-	if (ret < 0) {
-		NVT_ERR("init_lct_tp_work Failed!\n");
-		goto err_init_lct_tp_work_failed;
-	} else {
-		NVT_LOG("init_lct_tp_work Succeeded!\n");
-	}
-#endif
-
-#if LCT_TP_PALM_EN
-	ret = init_lct_tp_palm(lct_nvt_tp_palm_callback);
-	if (ret < 0) {
-		NVT_ERR("init_lct_tp_palm Failed!");
-		goto err_init_lct_tp_palm_failed;
-	} else {
-		NVT_LOG("init_lct_tp_palm Succeeded!");
-	}
-#endif
-
 #if defined(CONFIG_FB)
 	ts->workqueue = create_singlethread_workqueue("nvt_ts_workqueue");
 	if (!ts->workqueue) {
@@ -2523,9 +2023,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 
 	/*function description*/
 	if (ts->nvt_tp_class == NULL) {
-#ifdef CONFIG_TOUCHSCREEN_AAABBB_TOUCHFEATURE
-		ts->nvt_tp_class = get_aaabbb_touch_class();
-#endif
 		if (ts->nvt_tp_class) {
 			ts->nvt_touch_dev = device_create(ts->nvt_tp_class, NULL, 0x38, ts, "tp_dev");
 			if (IS_ERR(ts->nvt_touch_dev)) {
@@ -2533,15 +2030,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 				goto err_class_create;
 			}
 			dev_set_drvdata(ts->nvt_touch_dev, ts);
-#ifdef CONFIG_TOUCHSCREEN_AAABBB_TOUCHFEATURE
-			memset(&aaabbb_touch_interfaces, 0x00, sizeof(struct aaabbb_touch_interface));
-			aaabbb_touch_interfaces.getModeValue = nvt_get_mode_value;
-			aaabbb_touch_interfaces.setModeValue = nvt_set_cur_value;
-			aaabbb_touch_interfaces.resetMode = nvt_reset_mode;
-			aaabbb_touch_interfaces.getModeAll = nvt_get_mode_all;
-			nvt_init_touchmode_data();
-			aaabbbtouch_register_modedata(&aaabbb_touch_interfaces);
-#endif
 		}
 	}
 
@@ -2560,8 +2048,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 #if NVT_USB_PLUGIN
 	g_touchscreen_usb_pulgin.event_callback = nvt_ts_usb_event_callback;
 #endif
-
-	set_touchpanel_recovery_callback(nvt_ts_recovery_callback);
 
 	//spi bus pm_runtime_get
 	spi_geni_master_dev = lct_get_spi_geni_master_dev(ts->client->master);
@@ -2592,30 +2078,6 @@ err_register_fb_notif_failed:
 #elif defined(CONFIG_HAS_EARLYSUSPEND)
 	unregister_early_suspend(&ts->early_suspend);
 err_register_early_suspend_failed:
-#endif
-#if LCT_TP_WORK_EN
-err_init_lct_tp_work_failed:
-uninit_lct_tp_work();
-#endif
-
-#if LCT_TP_PALM_EN
-err_init_lct_tp_palm_failed:
-uninit_lct_tp_palm();
-#endif
-
-#if LCT_TP_GRIP_AREA_EN
-err_init_lct_tp_grip_area_failed:
-uninit_lct_tp_grip_area();
-#endif
-#if WAKEUP_GESTURE
-err_init_lct_tp_gesture_failed:
-uninit_lct_tp_gesture();
-#endif
-err_init_lct_tp_info_failed:
-uninit_lct_tp_info();
-#if NVT_TOUCH_MP
-nvt_mp_proc_deinit();
-err_mp_proc_init_failed:
 #endif
 #if NVT_TOUCH_EXT_PROC
 nvt_extra_proc_deinit();
@@ -2707,25 +2169,6 @@ static int32_t nvt_ts_remove(struct spi_device *client)
 	unregister_early_suspend(&ts->early_suspend);
 #endif
 
-#if LCT_TP_WORK_EN
-	uninit_lct_tp_work();
-#endif
-
-#if LCT_TP_PALM_EN
-	uninit_lct_tp_palm();
-#endif
-
-#if LCT_TP_GRIP_AREA_EN
-	uninit_lct_tp_grip_area();
-#endif
-#if WAKEUP_GESTURE
-	uninit_lct_tp_gesture();
-#endif
-	uninit_lct_tp_info();
-
-#if NVT_TOUCH_MP
-	nvt_mp_proc_deinit();
-#endif
 #if NVT_TOUCH_EXT_PROC
 	nvt_extra_proc_deinit();
 #endif
@@ -2807,17 +2250,6 @@ static void nvt_ts_shutdown(struct spi_device *client)
 	unregister_early_suspend(&ts->early_suspend);
 #endif
 
-#if LCT_TP_WORK_EN
-	uninit_lct_tp_work();
-#endif
-#if WAKEUP_GESTURE
-	uninit_lct_tp_gesture();
-#endif
-	uninit_lct_tp_info();
-
-#if NVT_TOUCH_MP
-	nvt_mp_proc_deinit();
-#endif
 #if NVT_TOUCH_EXT_PROC
 	nvt_extra_proc_deinit();
 #endif
@@ -2992,11 +2424,6 @@ static int32_t nvt_ts_resume(struct device *dev)
 		lct_nvt_tp_gesture_callback(!ts->is_gesture_mode);
 		ts->delay_gesture = false;
 	}
-#endif
-
-#if LCT_TP_WORK_EN
-	if (!get_lct_tp_work_status())
-		nvt_irq_enable(false);
 #endif
 
 #if NVT_USB_PLUGIN
