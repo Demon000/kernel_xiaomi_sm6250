@@ -1,5 +1,4 @@
 /* Copyright (c) 2019, The Linux Foundation. All rights reserved.
- * Copyright (C) 2020 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,14 +16,14 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 
 #include "atoll-idp.dtsi"
-#include "atoll-audio-overlay.dtsi"
-#include "atoll-camera-sensor-idp.dtsi"
+#include "atoll-wcd937x-idp-audio-overlay.dtsi"
+#include "custa-atoll-camera-sensor-idp.dtsi"
 
 / {
-	model = "IDP";
-	compatible = "qcom,atoll-idp", "qcom,atoll", "qcom,idp";
-	qcom,msm-id = <407 0x0>;
-	qcom,board-id = <34 0>;
+	model = "wcd937x Audio Codec AB IDP CURTANA";
+	compatible = "qcom,atoll-ab-idp", "qcom,atoll-ab", "qcom,idp";
+	qcom,msm-id = <443 0x0>;
+	qcom,board-id = <0x20022 1>;
 };
 
 &dsi_ft8756_huaxing_video {
@@ -35,4 +34,16 @@
 };
 &sdhc_2 {
 	cd-gpios = <&tlmm 69 0>;
+};
+
+&pm6150_charger {
+	qcom,fv-max-uv = <4450000>;
+	qcom,fcc-max-ua = <3600000>;
+	qcom,thermal-mitigation = <3600000 3300000 3000000 2500000 2000000 1500000 1000000 500000>;
+};
+
+&tx_swr_gpios {
+	qcom,chip-wakeup-reg = <0x01FFB000>;
+	qcom,chip-wakeup-maskbit = <0>;
+	qcom,chip-wakeup-default-val = <0x1>;
 };
