@@ -1167,6 +1167,8 @@ struct dwc3 {
 	bool			b_suspend;
 	unsigned int		vbus_draw;
 
+	unsigned		dis_metastability_quirk:1;
+
 	u16			imod_interval;
 	struct workqueue_struct *dwc_wq;
 	struct work_struct      bh_work;
