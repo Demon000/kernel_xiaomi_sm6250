@@ -137,6 +137,10 @@
 			dynamic table installation which will install SSDT
 			tables to /sys/firmware/acpi/tables/dynamic.
 
+	acpi_no_watchdog	[HW,ACPI,WDT]
+			Ignore the ACPI-based watchdog interface (WDAT) and let
+			a native driver control the watchdog device instead.
+
 	acpi_rsdp=	[ACPI,EFI,KEXEC]
 			Pass the RSDP address to the kernel, mostly used
 			on machines running EFI runtime service to boot the
@@ -840,11 +844,6 @@
 			Can be useful to work around chipset bugs.
 
 	dis_ucode_ldr	[X86] Disable the microcode loader.
-
-	dm=		[DM] Allows early creation of a device-mapper device.
-			See Documentation/device-mapper/boot.txt.
-
-	dmasound=	[HW,OSS] Sound subsystem buff
 
 	dma_debug=off	If the kernel is compiled with DMA_API_DEBUG support,
 			this option disables the debugging code at boot.
