@@ -1133,8 +1133,11 @@ static int qcom_glink_handle_signals(struct qcom_glink *glink,
 	old = channel->rsigs;
 	channel->rsigs = signals;
 
-	if (channel->ept.sig_cb)
+	if (channel->ept.sig_cb) {
+		dev_err(glink->dev,"~1 channel name=%x, channel->ept=%x, channel->ept.rpdev=%x\n",
+			channel->name, channel->ept, channel->ept.rpdev);
 		channel->ept.sig_cb(channel->ept.rpdev, old, channel->rsigs);
+	}
 
 	CH_INFO(channel, "old:%d new:%d\n", old, channel->rsigs);
 
@@ -2029,7 +2032,7 @@ void qcom_glink_native_remove(struct qcom_glink *glink)
 	struct glink_channel *channel;
 	int cid;
 	int ret;
-	unsigned long flags;
+    unsigned long flags;
 
 	subsys_unregister_early_notifier(glink->name, XPORT_LAYER_NOTIF);
 	qcom_glink_notif_reset(glink);
@@ -2062,6 +2065,10 @@ void qcom_glink_native_remove(struct qcom_glink *glink)
 		kref_put(&channel->refcount, qcom_glink_channel_release);
 		idr_remove(&glink->rcids, cid);
 	}
+
+	/* Release any defunct local channels, waiting for close-req */
+	idr_for_each_entry(&glink->rcids, channel, cid)
+		kref_put(&channel->refcount, qcom_glink_channel_release);
 
 	idr_destroy(&glink->lcids);
 	idr_destroy(&glink->rcids);
