@@ -42,11 +42,26 @@ ifeq ($(KERNEL_HEADER_DEFCONFIG),)
 KERNEL_HEADER_DEFCONFIG := $(KERNEL_DEFCONFIG)
 endif
 
+#kernel override must set a default value，otherwise other kernel override will not work.
+KERNEL_CONFIG_OVERRIDE := CONFIG_ANDROID_KERNEL_OVERRIDE=y
+
 # Force 32-bit binder IPC for 64bit kernel with 32bit userspace
 ifeq ($(KERNEL_ARCH),arm64)
 ifeq ($(TARGET_ARCH),arm)
 KERNEL_CONFIG_OVERRIDE := CONFIG_ANDROID_BINDER_IPC_32BIT=y
 endif
+endif
+
+ifeq ($(TARGET_NFC_TYPE),NONE)
+KERNEL_CONFIG_OVERRIDE_NFC := CONFIG_NFC_NQ=n
+endif
+
+ifeq ($(TARGET_NFC_TYPE),SN100T)
+KERNEL_CONFIG_OVERRIDE_NFC := CONFIG_NFC_NQ=y
+endif
+
+ifeq ($(TARGET_NFC_TYPE),PN553)
+KERNEL_CONFIG_OVERRIDE_NFC := CONFIG_NFC_NQ=y
 endif
 
 TARGET_KERNEL_CROSS_COMPILE_PREFIX := $(strip $(TARGET_KERNEL_CROSS_COMPILE_PREFIX))
@@ -178,6 +193,7 @@ $(KERNEL_CONFIG): $(KERNEL_OUT)
 	$(hide) if [ ! -z "$(KERNEL_CONFIG_OVERRIDE)" ]; then \
 			echo "Overriding kernel config with '$(KERNEL_CONFIG_OVERRIDE)'"; \
 			echo $(KERNEL_CONFIG_OVERRIDE) >> $(KERNEL_OUT)/.config; \
+			echo $(KERNEL_CONFIG_OVERRIDE_NFC) >> $(KERNEL_OUT)/.config; \
 			$(MAKE) -C $(TARGET_KERNEL_SOURCE) O=$(BUILD_ROOT_LOC)$(KERNEL_OUT) $(KERNEL_MAKE_ENV) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(real_cc) oldconfig; fi
 
 ifeq ($(TARGET_KERNEL_APPEND_DTB), true)
@@ -222,6 +238,7 @@ $(KERNEL_HEADERS_INSTALL): $(KERNEL_OUT)
 	$(hide) if [ ! -z "$(KERNEL_CONFIG_OVERRIDE)" ]; then \
 			echo "Overriding kernel config with '$(KERNEL_CONFIG_OVERRIDE)'"; \
 			echo $(KERNEL_CONFIG_OVERRIDE) >> $(KERNEL_OUT)/.config; \
+			echo $(KERNEL_CONFIG_OVERRIDE_NFC) >> $(KERNEL_OUT)/.config; \
 			$(MAKE) -C $(TARGET_KERNEL_SOURCE) O=$(BUILD_ROOT_LOC)$(KERNEL_OUT) $(KERNEL_MAKE_ENV) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(real_cc) oldconfig; fi
 
 # RTIC DTS to DTB (if MPGen enabled;
