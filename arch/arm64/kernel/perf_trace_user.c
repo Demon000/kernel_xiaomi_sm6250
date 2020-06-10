@@ -40,7 +40,6 @@ static ssize_t perf_trace_write(struct file *file,
 
 	length = len > TRACE_USER_MAX_BUF_SIZE ? TRACE_USER_MAX_BUF_SIZE : len;
 
-	rc = copy_from_user(buf, user_string_in, length);
 	if (rc) {
 		pr_err("%s copy_from_user failed, rc=%d\n", __func__, rc);
 		return -EFAULT;
