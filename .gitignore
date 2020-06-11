@@ -125,3 +125,9 @@ all.config
 
 # fetched Android config fragments
 kernel/configs/android-*.cfg
+
+out/
+AnyKernel2/
+clang-llvm/
+*.sh
+error.log
