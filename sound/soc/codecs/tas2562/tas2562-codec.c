@@ -338,7 +338,7 @@ static int tas2562_set_power_state(struct tas2562_priv *p_tas2562,
                 dev_dbg(p_tas2562->dev, "set ICN to -80dB\n");
                 n_result = p_tas2562->bulk_write(p_tas2562, chn,
                         TAS2562_ICN_REG, p_icn, 4);
-		schedule_delayed_work(&p_tas2562->irq_work,
+		queue_delayed_work(system_power_efficient_wq, &p_tas2562->irq_work,
 				msecs_to_jiffies(40));
 		break;
 
@@ -1174,7 +1174,7 @@ void tas2562_load_config(struct tas2562_priv *p_tas2562)
 end:
 /* power up failed, restart later */
 	if (ret < 0)
-		schedule_delayed_work(&p_tas2562->irq_work,
+		queue_delayed_work(system_power_efficient_wq, &p_tas2562->irq_work,
 				msecs_to_jiffies(1000));
 }
 

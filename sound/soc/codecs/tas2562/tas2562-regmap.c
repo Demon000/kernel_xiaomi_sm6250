@@ -798,7 +798,7 @@ static irqreturn_t tas2562_irq_handler(int irq, void *dev_id)
 	struct tas2562_priv *p_tas2562 = (struct tas2562_priv *)dev_id;
 
 	/* get IRQ status after 100 ms */
-	schedule_delayed_work(&p_tas2562->irq_work, msecs_to_jiffies(100));
+	queue_delayed_work(system_power_efficient_wq, &p_tas2562->irq_work, msecs_to_jiffies(100));
 	return IRQ_HANDLED;
 }
 
@@ -861,7 +861,7 @@ void tas2562_software_reset(void *prv_data)
 {
 	(void)prv_data;
 	pr_err("[TI-SmartPA:%s]\n", __func__);
-	schedule_delayed_work(&g_p_tas2562->dc_work, msecs_to_jiffies(10));
+	queue_delayed_work(system_power_efficient_wq, &g_p_tas2562->dc_work, msecs_to_jiffies(10));
 }
 
 static void dc_work_routine(struct work_struct *work)
