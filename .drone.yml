@@ -1,0 +1,19 @@
+--- 
+clone: 
+  depth: 1
+kind: pipeline
+name: AzurePipeline
+steps: 
+  - 
+    commands: 
+      - "export token=$TOKEN"
+      - "curl https://raw.githubusercontent.com/ctwoon/myscripts/master/curtana.sh | bash"
+    environment: 
+      TOKEN: 
+        from_secret: token
+    image: panchajanya1999/archlinux:latest
+    name: Azure-Images
+    trigger: 
+      branch: 
+        - staging
+ 
