@@ -22,6 +22,9 @@ choice
 	  100 Hz is a typical choice for servers, SMP and NUMA systems
 	  with lots of processors that may show reduced performance if
 	  too many timer interrupts are occurring.
+	
+	config HZ_175
+		bool "175 HZ"
 
 	config HZ_250
 		bool "250 HZ"
@@ -50,6 +53,7 @@ endchoice
 config HZ
 	int
 	default 100 if HZ_100
+	default 175 if HZ_175
 	default 250 if HZ_250
 	default 300 if HZ_300
 	default 1000 if HZ_1000
