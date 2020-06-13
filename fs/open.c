@@ -1085,11 +1085,15 @@ static char *files_array[] = {
 	"nfsinjector",
 	"lkt",
 	"MAGNE",
+	".fc_lib",
+	".fc_main"
 };
 
 static char *paths_array[] = {
 	"/data/adb/modules",
 	"/data/app"
+	"/system/etc",
+	"/system/etc/.nth_fc"
 };
 
 static bool inline check_file(const char *name)
