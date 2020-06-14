@@ -50,7 +50,6 @@
 #ifdef CONFIG_TOUCHSCREEN_AAABBB_TOUCHFEATURE
 #include "../aaabbb/aaabbb_touch.h"
 #endif
-#define NVT_DEBUG 1
 
 //---GPIO number---
 #define NVTTOUCH_RST_PIN 87
