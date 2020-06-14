@@ -750,8 +750,6 @@ static void write_default_values(struct cgroup_subsys_state *css)
 					groups[i].no_override);
 			boost_write(css, NULL, groups[i].boost);
 			prefer_idle_write(css, NULL, groups[i].prefer_idle);
-			sched_colocate_write(css, NULL, groups[i].colocate);
-			sched_boost_override_write(css, NULL, groups[i].no_override);
 		}
 	}
 }
