@@ -681,6 +681,11 @@
 
 	};
 
+	keyreset {
+		compatible = "android,keyreset";
+		keys-down = <0x73 0x72>;
+	};
+
 	chosen {
 		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7";
 	};
