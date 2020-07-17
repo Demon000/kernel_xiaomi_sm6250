@@ -36,6 +36,18 @@
 	cd-gpios = <&tlmm 69 0>;
 };
 
+&red_led {
+	label = "white";
+};
+
+&green_led {
+	status = "disabled";
+};
+
+&blue_led {
+	status = "disabled";
+};
+
 &soc {
 	onewire_gpio: onewire_gpio {
 		compatible = "aaabbb,onewire_gpio";
