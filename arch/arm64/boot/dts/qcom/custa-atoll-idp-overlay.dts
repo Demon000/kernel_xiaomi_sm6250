@@ -16,16 +16,28 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 
 #include "atoll-idp.dtsi"
-#include "atoll-audio-overlay.dtsi"
-#include "atoll-camera-sensor-idp.dtsi"
+#include "atoll-wcd937x-idp-audio-overlay.dtsi"
+#include "custa-atoll-camera-sensor-idp.dtsi"
 
 / {
-	model = "IDP";
+	model = "wcd937x Audio Codec IDP CURTANA";
 	compatible = "qcom,atoll-idp", "qcom,atoll", "qcom,idp";
 	qcom,msm-id = <407 0x0>;
-	qcom,board-id = <34 0>;
+	qcom,board-id = <0x20022 1>;
 };
 
-&dsi_rm69299_visionox_amoled_vid_display {
+&dsi_ft8756_huaxing_video {
 	qcom,dsi-display-active;
+};
+&dsi_nt36675_tianma_video {
+	qcom,dsi-display-active;
+};
+&sdhc_2 {
+	cd-gpios = <&tlmm 69 0>;
+};
+
+&pm6150_charger {
+	qcom,fv-max-uv = <4450000>;
+	qcom,fcc-max-ua = <3600000>;
+	qcom,thermal-mitigation = <3600000 3300000 3000000 2500000 2000000 1500000 1000000 500000>;
 };
