@@ -16,7 +16,7 @@
 &soc {
 	/delete-node/ qcom,battery-data;
 
-	mtp_batterydata: qcom,battery-data {
+	cust_batterydata: qcom,battery-data {
 		qcom,batt-id-range-pct = <15>;
 		#include "qg-batterydata-sunwoda_5020mAh.dtsi"
 		#include "qg-batterydata-atl_5020mAh.dtsi"
@@ -40,6 +40,7 @@
 };
 
 &pm6150_qg {
+	qcom,battery-data = <&cust_batterydata>;
 	qcom,tcss-enable;
 	qcom,qg-iterm-ma = <350>;
 	qcom,vbatt-cutoff-mv = <3400>;
@@ -60,6 +61,7 @@
 	/delete-property/ qcom,step-charging-enable;
 	/delete-property/ qcom,fcc-stepping-enable;
 
+	qcom,battery-data = <&cust_batterydata>;
 	qcom,auto-recharge-soc = <99>;
 	qcom,fcc-max-ua = <3000000>;
 	qcom,fv-max-uv = <4450000>;
