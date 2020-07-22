@@ -17,6 +17,7 @@
 
 #include "atoll-idp.dtsi"
 #include "atoll-wcd937x-idp-audio-overlay.dtsi"
+#include "cust-atoll-audio-overlay.dtsi"
 #include "custe-atoll-camera-sensor-idp.dtsi"
 
 / {
