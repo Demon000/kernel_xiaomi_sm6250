@@ -18,6 +18,7 @@
 
 #include "atoll-idp.dtsi"
 #include "cust-atoll-pinctrl-overlay.dtsi"
+#include "cust-atoll-regulator.dtsi"
 #include "cust-atoll-idp.dtsi"
 #include "atoll-wcd937x-idp-audio-overlay.dtsi"
 #include "cust-atoll-audio-overlay.dtsi"
