@@ -13,16 +13,16 @@ dtbo-$(CONFIG_ARCH_ATOLL) += \
 		custj-atoll-ab-idp-overlay.dtbo \
 		custg-atoll-ab-idp-overlay.dtbo
 
-custa-atoll-idp-overlay.dtbo-base := atoll.dtb
-custd-atoll-idp-overlay.dtbo-base := atoll.dtb
-custe-atoll-idp-overlay.dtbo-base := atoll.dtb
-custj-atoll-idp-overlay.dtbo-base := atoll.dtb
-custg-atoll-idp-overlay.dtbo-base := atoll.dtb
-custa-atoll-ab-idp-overlay.dtbo-base := atoll-ab.dtb
-custd-atoll-ab-idp-overlay.dtbo-base := atoll-ab.dtb
-custe-atoll-ab-idp-overlay.dtbo-base := atoll-ab.dtb
-custj-atoll-ab-idp-overlay.dtbo-base := atoll-ab.dtb
-custg-atoll-ab-idp-overlay.dtbo-base := atoll-ab.dtb
+custa-atoll-idp-overlay.dtbo-base := cust-atoll.dtb
+custd-atoll-idp-overlay.dtbo-base := cust-atoll.dtb
+custe-atoll-idp-overlay.dtbo-base := cust-atoll.dtb
+custj-atoll-idp-overlay.dtbo-base := cust-atoll.dtb
+custg-atoll-idp-overlay.dtbo-base := cust-atoll.dtb
+custa-atoll-ab-idp-overlay.dtbo-base := cust-atoll-ab.dtb
+custd-atoll-ab-idp-overlay.dtbo-base := cust-atoll-ab.dtb
+custe-atoll-ab-idp-overlay.dtbo-base := cust-atoll-ab.dtb
+custj-atoll-ab-idp-overlay.dtbo-base := cust-atoll-ab.dtb
+custg-atoll-ab-idp-overlay.dtbo-base := cust-atoll-ab.dtb
 endif
 else
 dtb-$(CONFIG_ARCH_QCOM)	+= apq8016-sbc.dtb
