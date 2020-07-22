@@ -47,16 +47,18 @@
 	cd-gpios = <&tlmm 69 0>;
 };
 
-&red_led {
-	label = "white";
-};
+&pm6150l_rgb_led {
+	red {
+		label = "white";
+	};
 
-&green_led {
-	status = "disabled";
-};
+	green {
+		status = "disabled";
+	};
 
-&blue_led {
-	status = "disabled";
+	blue {
+		status = "disabled";
+	};	
 };
 
 &pm6150_charger {
