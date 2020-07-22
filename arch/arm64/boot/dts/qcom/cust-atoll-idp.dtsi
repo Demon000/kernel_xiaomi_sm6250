@@ -83,6 +83,7 @@
 
 &smb1396 {
 	status = "ok";
+	interrupt-parent = <&spmi_bus>;
 	interrupts = <0x0 0xc2 0x0 IRQ_TYPE_LEVEL_LOW>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&smb_stat_default>;
@@ -90,7 +91,8 @@
 
 &smb1396_div2_cp_master {
 	status = "ok";
-	io-channels = <&pm6150_vadc ADC_AMUX_THM2>;
+	interrupt-parent = <&smb1396>;
+	qcom,max-cutoff-soc = <90>;
 };
 
 &qupv3_se7_i2c {
