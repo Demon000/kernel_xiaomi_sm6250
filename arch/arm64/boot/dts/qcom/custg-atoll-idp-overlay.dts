@@ -21,6 +21,7 @@
 #include "cust-atoll-regulator.dtsi"
 #include "cust-atoll-sde-display.dtsi"
 #include "cust-atoll-thermal.dtsi"
+#include "cust-atoll-usb.dtsi"
 #include "cust-atoll-idp.dtsi"
 #include "atoll-wcd937x-idp-audio-overlay.dtsi"
 #include "cust-atoll-audio-overlay.dtsi"
