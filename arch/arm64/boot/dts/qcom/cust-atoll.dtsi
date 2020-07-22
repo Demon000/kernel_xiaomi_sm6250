@@ -35,3 +35,7 @@
 &ufshc_mem {
 	spm-level = <3>;
 };
+
+&icnss {
+	qcom,hyp_disabled;
+};
