@@ -17,6 +17,7 @@
 
 #include "cust-atoll.dtsi"
 #include "atoll-idp.dtsi"
+#include "cust-msm-audio-lpass.dtsi"
 #include "cust-atoll-pinctrl-overlay.dtsi"
 #include "cust-atoll-regulator.dtsi"
 #include "cust-atoll-sde-display.dtsi"
