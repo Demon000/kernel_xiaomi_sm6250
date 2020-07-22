@@ -16,6 +16,7 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 
 #include "cust-atoll.dtsi"
+#include "cust-pm6150.dtsi"
 #include "atoll-idp.dtsi"
 #include "cust-msm-audio-lpass.dtsi"
 #include "cust-atoll-pinctrl-overlay.dtsi"
