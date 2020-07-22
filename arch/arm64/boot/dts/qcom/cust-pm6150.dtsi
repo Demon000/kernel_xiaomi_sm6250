@@ -1,3 +1,5 @@
+#include <dt-bindings/input/qcom,qpnp-power-on.h>
+
 &spmi_bus {
 	qcom,pm6150@0 {
 		qcom,power-on@800 {
