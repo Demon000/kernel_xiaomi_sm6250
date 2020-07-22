@@ -47,6 +47,20 @@
 	cd-gpios = <&tlmm 69 0>;
 };
 
+&pm6150l_rgb_led {
+	red {
+		label = "white";
+	};
+
+	green {
+		status = "disabled";
+	};
+
+	blue {
+		status = "disabled";
+	};
+};
+
 &pm6150_charger {
 	qcom,fv-max-uv = <4450000>;
 	qcom,fcc-max-ua = <3600000>;

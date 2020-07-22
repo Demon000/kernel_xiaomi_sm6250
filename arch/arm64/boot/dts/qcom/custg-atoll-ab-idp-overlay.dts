@@ -48,6 +48,19 @@
 	cd-gpios = <&tlmm 69 0>;
 };
 
+&pm6150l_rgb_led {
+	red {
+		label = "white";
+	};
+
+	green {
+		status = "disabled";
+	};
+
+	blue {
+		status = "disabled";
+	};
+};
 
 &soc {
 	onewire_gpio: onewire_gpio {
