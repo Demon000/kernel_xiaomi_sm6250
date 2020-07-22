@@ -13,6 +13,7 @@
 /dts-v1/;
 
 #include "atoll-ab.dtsi"
+#include "cust-atoll-pinctrl.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. ATOLL-AB SoC";
