@@ -1,0 +1,14 @@
+&qupv3_se10_spi_sleep {
+	config {
+		/delete-property/ bias-disable;
+		bias-pull-down;
+		output-low;
+	};
+};
+
+&qupv3_se11_spi_sleep {
+	config {
+		/delete-property/ bias-disable;
+		bias-pull-up;
+	};
+};
