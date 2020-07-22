@@ -85,6 +85,7 @@
 
 &qupv3_se9_i2c {
 	status = "ok";
+	qcom,clk-freq-out = <100000>;
 	#include "smb1398.dtsi"
 };
 
@@ -180,6 +181,7 @@
 
 &qupv3_se9_i2c {
 	status = "ok";
+	qcom,clk-freq-out = <100000>;
 	tas2562@4c {
 		#sound-dai-cells = <0>;
 		compatible = "ti,tas2562";
