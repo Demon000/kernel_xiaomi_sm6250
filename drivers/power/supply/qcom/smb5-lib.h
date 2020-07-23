@@ -220,11 +220,12 @@ enum print_reason {
 
 /* lct thermal */
 #ifdef CONFIG_J6B_CHARGE_THERMAL
-#define LCT_THERM_CALL_LEVEL_J6B		14
-#define LCT_THERM_LCDOFF_LEVEL_J6B		13
-#endif
+#define LCT_THERM_CALL_LEVEL		14
+#define LCT_THERM_LCDOFF_LEVEL		13
+#else
 #define LCT_THERM_CALL_LEVEL		7
 #define LCT_THERM_LCDOFF_LEVEL		4
+#endif
 
 enum hvdcp3_type {
 	HVDCP3_NONE = 0,
@@ -647,8 +648,9 @@ struct smb_charger {
 	int 		*thermal_fcc_qc3_classb_cp;
 	int 		*thermal_fcc_qc3p5_cp;
 	int 		*thermal_fcc_pps_cp;
-#endif
+#else
 	int			*thermal_mitigation;
+#endif
 	int			dcp_icl_ua;
 	int			fake_capacity;
 	int			fake_batt_status;

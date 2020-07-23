@@ -42,8 +42,8 @@
 
 union power_supply_propval lct_therm_lvl_reserved;
 union power_supply_propval lct_therm_level;
-union power_supply_propval lct_therm_call_level = {0,};
-union power_supply_propval lct_therm_lcdoff_level = {0,};
+union power_supply_propval lct_therm_call_level = {LCT_THERM_CALL_LEVEL,};
+union power_supply_propval lct_therm_lcdoff_level = {LCT_THERM_LCDOFF_LEVEL,};
 
 bool lct_backlight_off;
 int LctIsInCall = 0;
@@ -574,10 +574,6 @@ static int smb5_parse_dt(struct smb5 *chip)
 				&chip->dt.term_current_thresh_lo_ma);
 
 #ifdef CONFIG_J6B_CHARGE_THERMAL
-	if (chg->six_pin_step_charge_enable) {
-	lct_therm_call_level.intval = LCT_THERM_CALL_LEVEL_J6B;
-	lct_therm_lcdoff_level.intval = LCT_THERM_LCDOFF_LEVEL_J6B;
-
 	if (of_find_property(node, "qcom,thermal-mitigation-dcp", &byte_len)) {
 		chg->thermal_mitigation_dcp = devm_kzalloc(chg->dev, byte_len,
 			GFP_KERNEL);
@@ -748,11 +744,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 			return rc;
 		}
 	}
-	} else {
-#endif
-	lct_therm_call_level.intval = LCT_THERM_CALL_LEVEL;
-	lct_therm_lcdoff_level.intval = LCT_THERM_LCDOFF_LEVEL;
-
+#else
 	if (of_find_property(node, "qcom,thermal-mitigation", &byte_len)) {
 		chg->thermal_mitigation = devm_kzalloc(chg->dev, byte_len,
 			GFP_KERNEL);
@@ -770,8 +762,6 @@ static int smb5_parse_dt(struct smb5 *chip)
 				"Couldn't read threm limits rc = %d\n", rc);
 			return rc;
 		}
-	}
-#ifdef CONFIG_J6B_CHARGE_THERMAL
 	}
 #endif
 
