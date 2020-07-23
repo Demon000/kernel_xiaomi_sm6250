@@ -2981,6 +2981,7 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 				const union power_supply_propval *val)
 {
 	int rc;
+	int therm_lcd_off_level, therm_call_level;
 	union power_supply_propval batt_temp ={0,};
 
 	if (val->intval < 0)
@@ -3006,16 +3007,24 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 	pr_info("%s val=%d, chg->system_temp_level=%d, LctThermal=%d, lct_backlight_off= %d, IsInCall=%d \n "
 		,__FUNCTION__,val->intval,chg->system_temp_level, LctThermal, lct_backlight_off, LctIsInCall);
 
+	if (chg->six_pin_step_charge_enable) {
+		therm_lcd_off_level = LCT_THERM_LCDOFF_LEVEL_J6B;
+		therm_call_level = LCT_THERM_CALL_LEVEL_J6B;
+	} else {
+		therm_lcd_off_level = LCT_THERM_LCDOFF_LEVEL;
+		therm_call_level = LCT_THERM_CALL_LEVEL;
+	}
+
 	if (LctThermal == 0) { //from therml-engine always store lvl_sel
 		lct_therm_lvl_reserved.intval = val->intval;
 	}
 
-	if ((lct_backlight_off) && (LctIsInCall == 0) && (val->intval > LCT_THERM_LCDOFF_LEVEL)) {
+	if ((lct_backlight_off) && (LctIsInCall == 0) && (val->intval > therm_lcd_off_level)) {
 		pr_info("leve ignored:backlight_off:%d level:%d",lct_backlight_off,val->intval);
 		return 0;
 	}
 
-	if ((LctIsInCall == 1) && (val->intval != LCT_THERM_CALL_LEVEL)) {
+	if ((LctIsInCall == 1) && (val->intval != therm_call_level)) {
 		pr_info("leve ignored:LctIsInCall:%d level:%d",LctIsInCall,val->intval);
 		return 0;
 	}
@@ -3043,13 +3052,17 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 		vote(chg->cp_disable_votable, THERMAL_DAEMON_VOTER, false, 0);
 
 #ifdef CONFIG_J6B_CHARGE_THERMAL
+	if (chg->six_pin_step_charge_enable) {
 	smblib_therm_charging(chg);
-#else
+	} else {
+#endif
 	if (chg->system_temp_level == 0)
 		return vote(chg->fcc_votable, THERMAL_DAEMON_VOTER, false, 0);
 
 	vote(chg->fcc_votable, THERMAL_DAEMON_VOTER, true,
 			chg->thermal_mitigation[chg->system_temp_level]);
+#ifdef CONFIG_J6B_CHARGE_THERMAL
+	}
 #endif
 	return 0;
 }
@@ -5324,6 +5337,7 @@ int smblib_set_prop_pd_active(struct smb_charger *chg,
 		}
 
 #ifdef CONFIG_J6B_CHARGE_THERMAL
+		if (chg->six_pin_step_charge_enable)
 		smblib_therm_charging(chg);
 #endif
 	} else {
@@ -6642,6 +6656,7 @@ static void smblib_raise_qc3_vbus_work(struct work_struct *work)
 			dev_err(chg->dev,
 					"HVDCP3: Couldn't enable secondary chargers  rc=%d\n", rc);
 #ifdef CONFIG_J6B_CHARGE_THERMAL
+		if (chg->six_pin_step_charge_enable)
 		if (chg->cp_reason == POWER_SUPPLY_CP_HVDCP3)
 			smblib_therm_charging(chg);
 #endif
@@ -6974,6 +6989,7 @@ static void smblib_handle_apsd_done(struct smb_charger *chg, bool rising)
 	}
 
 #ifdef CONFIG_J6B_CHARGE_THERMAL
+	if (chg->six_pin_step_charge_enable)
 	determine_thermal_current(chg);
 #endif
 
