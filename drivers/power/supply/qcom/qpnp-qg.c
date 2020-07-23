@@ -2091,24 +2091,22 @@ static int qg_psy_get_property(struct power_supply *psy,
 	int rc = 0;
 	int64_t temp = 0;
 #ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	bool handled_by_verify;
 	union power_supply_propval b_val = {0,};
 	if (chip->max_verify_psy == NULL)
 		chip->max_verify_psy = power_supply_get_by_name("batt_verify");
-	if ((psp == POWER_SUPPLY_PROP_AUTHENTIC)
-		|| (psp == POWER_SUPPLY_PROP_ROMID)
-		|| (psp == POWER_SUPPLY_PROP_DS_STATUS)
-		|| (psp == POWER_SUPPLY_PROP_PAGE0_DATA)
-		|| (psp == POWER_SUPPLY_PROP_CHIP_OK)) {
-		if (chip->max_verify_psy == NULL) {
-			pr_err("max_verify_psy is NULL\n");
-			return -ENODATA;
-		}
-	}
 #endif
 	pval->intval = 0;
 
-	switch (psp) {
 #ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	if (chip->max_verify_psy == NULL) {
+		handled_by_verify = false;
+		goto skip_verify;
+	} else {
+		handled_by_verify = true;
+	}
+
+	switch (psp) {
 	case POWER_SUPPLY_PROP_AUTHENTIC:
 		rc = power_supply_get_property(chip->max_verify_psy,
 					POWER_SUPPLY_PROP_AUTHEN_RESULT, &b_val);
@@ -2138,11 +2136,23 @@ static int qg_psy_get_property(struct power_supply *psy,
 					POWER_SUPPLY_PROP_CHIP_OK, &b_val);
 		pval->intval = b_val.intval;
 		break;
-#else
+	default:
+		handled_by_verify = false;
+		break;
+	}
+
+skip_verify:
+	if (handled_by_verify)
+		return rc;
+#endif
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_AUTHENTIC:
+		pval->intval = true;
+		break;
 	case POWER_SUPPLY_PROP_CHIP_OK:
 		pval->intval = 2;
 		break;
-#endif
 	case POWER_SUPPLY_PROP_CAPACITY:
 		rc = qg_get_battery_capacity(chip, &pval->intval);
 		/* Using smooth battery capacity */
@@ -3262,38 +3272,43 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 			if (rc < 0) {
 				pr_err("qg_load_battery_profile : get romid error.\n");
 			}
-		}
-		if (pval.intval == true) {
-			rc = power_supply_get_property(chip->max_verify_psy,
-						POWER_SUPPLY_PROP_PAGE0_DATA, &pval);
-			if (rc < 0) {
-				pr_err("qg_load_battery_profile : get page0 error.\n");
-				pr_err("[Battery Stress Test]:read page0 error\n");
-			} else {
-				pr_err("[Battery Stress Test]:page0 content[%c]\n", pval.arrayval[0]);
-				if ((pval.arrayval[0] == 'S') || (pval.arrayval[0] == 'X')) {
-					profile_node = of_batterydata_get_best_profile(chip->batt_node,
-						chip->batt_id_ohm / 1000, "j6b-sunwoda-5020mah");
-					chip->profile_judge_done = true;
-				} else if ((pval.arrayval[0] == 'N') || (pval.arrayval[0] == 'A')) {
-					profile_node = of_batterydata_get_best_profile(chip->batt_node,
-						chip->batt_id_ohm / 1000, "j6b-nvt-5020mah");
-					chip->profile_judge_done = true;
+
+			if (pval.intval == 1) {
+				rc = power_supply_get_property(chip->max_verify_psy,
+							POWER_SUPPLY_PROP_PAGE0_DATA, &pval);
+				if (rc < 0) {
+					pr_err("qg_load_battery_profile : get page0 error.\n");
+					pr_err("[Battery Stress Test]:read page0 error\n");
+				} else {
+					pr_err("[Battery Stress Test]:page0 content[%c]\n", pval.arrayval[0]);
+					if ((pval.arrayval[0] == 'S') || (pval.arrayval[0] == 'X')) {
+						profile_node = of_batterydata_get_best_profile(chip->batt_node,
+							chip->batt_id_ohm / 1000, "j6b-sunwoda-5020mah");
+						chip->profile_judge_done = true;
+					} else if ((pval.arrayval[0] == 'N') || (pval.arrayval[0] == 'A')) {
+						profile_node = of_batterydata_get_best_profile(chip->batt_node,
+							chip->batt_id_ohm / 1000, "j6b-nvt-5020mah");
+						chip->profile_judge_done = true;
+					}
 				}
 			}
-		}
 
-		if (chip->profile_judge_done == false) {
-			if (chip->profile_loaded == false) {
-				profile_node = of_batterydata_get_best_profile(chip->batt_node,
-						chip->batt_id_ohm / 1000, "j6b-nvt-5020mah");
-			} else {
-				return 0;
+			if (chip->profile_judge_done == false) {
+				if (chip->profile_loaded == false) {
+					profile_node = of_batterydata_get_best_profile(chip->batt_node,
+							chip->batt_id_ohm / 1000, "j6b-nvt-5020mah");
+				} else {
+					return 0;
+				}
 			}
-		}
+		} else {
+		chip->profile_judge_done = true;
 #else
 		profile_node = of_batterydata_get_best_profile(chip->batt_node,
 				chip->batt_id_ohm / 1000, NULL);
+#endif
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+		}
 #endif
 	}
 
@@ -3312,17 +3327,13 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 
 #ifdef CONFIG_BATT_VERIFY_BY_DS28E16
 	if (chip->profile_loaded == false) {
-		rc = qg_batterydata_init(profile_node);
-		if (rc < 0) {
-			pr_err("Failed to initialize battery-profile rc=%d\n", rc);
-			return rc;
-		}
-	}
-#else
+#endif
 	rc = qg_batterydata_init(profile_node);
 	if (rc < 0) {
 		pr_err("Failed to initialize battery-profile rc=%d\n", rc);
 		return rc;
+	}
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
 	}
 #endif
 
