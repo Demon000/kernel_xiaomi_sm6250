@@ -32,7 +32,7 @@
 
 / {
 	model = "wcd937x Audio Codec IDP CURTANA";
-	compatible = "qcom,atoll-idp", "qcom,atoll", "qcom,idp";
+	compatible = "qcom,cust-atoll";
 	qcom,msm-id = <407 0x0>;
 	qcom,board-id = <0x20022 1>;
 };
