@@ -59,6 +59,10 @@ module_param_named(
 
 static int qg_process_rt_fifo(struct qpnp_qg *chip);
 static int qg_load_battery_profile(struct qpnp_qg *chip);
+static int qg_determine_pon_soc(struct qpnp_qg *chip);
+static int qg_sanitize_sdam(struct qpnp_qg *chip);
+static int qg_setup_battery(struct qpnp_qg *chip);
+static int qg_post_init(struct qpnp_qg *chip);
 
 static bool is_battery_present(struct qpnp_qg *chip)
 {
@@ -208,15 +212,6 @@ static void qg_notify_charger(struct qpnp_qg *chip)
 
 	if (!chip->profile_loaded)
 		return;
-
-	prop.intval = chip->bp.float_volt_uv;
-	rc = power_supply_set_property(chip->batt_psy,
-			POWER_SUPPLY_PROP_VOLTAGE_MAX, &prop);
-	if (rc < 0) {
-		pr_err("Failed to set voltage_max property on batt_psy, rc=%d\n",
-			rc);
-		return;
-	}
 
 	prop.intval = chip->bp.fastchg_curr_ma * 1000;
 	rc = power_supply_set_property(chip->batt_psy,
@@ -1993,6 +1988,28 @@ static int qg_setprop_batt_age_level(struct qpnp_qg *chip, int batt_age_level)
 	return rc;
 }
 
+#define FFC_BATT_FULL_CURRENT	933000
+#define FFC_CHG_TERM_CURRENT	-541
+static int qg_get_ffc_iterm_for_qg(struct qpnp_qg *chip)
+{
+	int ffc_qg_iterm = 0;
+
+	ffc_qg_iterm = FFC_BATT_FULL_CURRENT;
+
+	return ffc_qg_iterm;
+}
+
+static int qg_get_ffc_iterm_for_chg(struct qpnp_qg *chip)
+{
+	int ffc_chg_iterm = 0;
+
+	ffc_chg_iterm = FFC_CHG_TERM_CURRENT;
+	if (chip->bp.ffc_chg_term_current != -EINVAL)
+		ffc_chg_iterm = chip->bp.ffc_chg_term_current;
+
+	return ffc_chg_iterm;
+}
+
 static int qg_psy_set_property(struct power_supply *psy,
 			       enum power_supply_property psp,
 			       const union power_supply_propval *pval)
@@ -2039,6 +2056,9 @@ static int qg_psy_set_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_BATT_AGE_LEVEL:
 		rc = qg_setprop_batt_age_level(chip, pval->intval);
 		break;
+	case POWER_SUPPLY_PROP_FASTCHARGE_MODE:
+		chip->fastcharge_mode_enabled = pval->intval;
+		break;
 	default:
 		break;
 	}
@@ -2053,9 +2073,55 @@ static int qg_psy_get_property(struct power_supply *psy,
 	int rc = 0;
 	int64_t temp = 0;
 
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	union power_supply_propval b_val = {0,};
+	if (chip->max_verify_psy == NULL)
+		chip->max_verify_psy = power_supply_get_by_name("batt_verify");
+	if ((psp == POWER_SUPPLY_PROP_AUTHENTIC)
+		|| (psp == POWER_SUPPLY_PROP_ROMID)
+		|| (psp == POWER_SUPPLY_PROP_DS_STATUS)
+		|| (psp == POWER_SUPPLY_PROP_PAGE0_DATA)
+		|| (psp == POWER_SUPPLY_PROP_CHIP_OK)) {
+		if (chip->max_verify_psy == NULL) {
+			pr_err("max_verify_psy is NULL\n");
+			return -ENODATA;
+		}
+	}
+#endif
 	pval->intval = 0;
 
 	switch (psp) {
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	case POWER_SUPPLY_PROP_AUTHENTIC:
+		rc = power_supply_get_property(chip->max_verify_psy,
+					POWER_SUPPLY_PROP_AUTHEN_RESULT, &b_val);
+		pval->intval = b_val.intval;
+		break;
+	case POWER_SUPPLY_PROP_ROMID:
+		rc = power_supply_get_property(chip->max_verify_psy,
+					POWER_SUPPLY_PROP_ROMID, &b_val);
+		memcpy(pval->arrayval, b_val.arrayval, 8);
+		break;
+	case POWER_SUPPLY_PROP_DS_STATUS:
+		rc = power_supply_get_property(chip->max_verify_psy,
+					POWER_SUPPLY_PROP_DS_STATUS, &b_val);
+		memcpy(pval->arrayval, b_val.arrayval, 8);
+		break;
+	case POWER_SUPPLY_PROP_PAGE0_DATA:
+		rc = power_supply_get_property(chip->max_verify_psy,
+					POWER_SUPPLY_PROP_PAGE0_DATA, &b_val);
+		memcpy(pval->arrayval, b_val.arrayval, 16);
+		break;
+	case POWER_SUPPLY_PROP_CHIP_OK:
+		rc = power_supply_get_property(chip->max_verify_psy,
+					POWER_SUPPLY_PROP_CHIP_OK, &b_val);
+		pval->intval = b_val.intval;
+		break;
+#else
+	case POWER_SUPPLY_PROP_CHIP_OK:
+		pval->intval = 2;
+		break;
+#endif
 	case POWER_SUPPLY_PROP_CAPACITY:
 		rc = qg_get_battery_capacity(chip, &pval->intval);
 		break;
@@ -2079,6 +2145,9 @@ static int qg_psy_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_RESISTANCE_ID:
 		pval->intval = chip->batt_id_ohm;
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+		pval->intval = 100000;
+#endif
 		break;
 	case POWER_SUPPLY_PROP_DEBUG_BATTERY:
 		pval->intval = is_debug_batt_id(chip);
@@ -2107,7 +2176,10 @@ static int qg_psy_get_property(struct power_supply *psy,
 		pval->intval = chip->bp.float_volt_uv;
 		break;
 	case POWER_SUPPLY_PROP_BATT_FULL_CURRENT:
-		pval->intval = chip->dt.iterm_ma * 1000;
+		if (chip->fastcharge_mode_enabled)
+			pval->intval = qg_get_ffc_iterm_for_qg(chip);
+		else
+			pval->intval = chip->dt.iterm_ma * 1000;
 		break;
 	case POWER_SUPPLY_PROP_BATT_PROFILE_VERSION:
 		pval->intval = chip->bp.qg_profile_version;
@@ -2124,9 +2196,13 @@ static int qg_psy_get_property(struct power_supply *psy,
 			pval->intval = (int)temp;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
-		rc = qg_get_nominal_capacity((int *)&temp, 250, true);
-		if (!rc)
-			pval->intval = (int)temp;
+		if (-EINVAL != chip->bp.nom_cap_uah) {
+			pval->intval = chip->bp.nom_cap_uah * 1000;
+		} else {
+			rc = qg_get_nominal_capacity((int *)&temp, 250, true);
+			if (!rc)
+				pval->intval = (int)temp;
+		}
 		break;
 	case POWER_SUPPLY_PROP_CYCLE_COUNTS:
 		rc = get_cycle_counts(chip->counter, &pval->strval);
@@ -2171,6 +2247,12 @@ static int qg_psy_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_BATT_AGE_LEVEL:
 		pval->intval = chip->batt_age_level;
 		break;
+	case POWER_SUPPLY_PROP_FFC_CHG_TERMINATION_CURRENT:
+		pval->intval = qg_get_ffc_iterm_for_chg(chip);
+		break;
+	case POWER_SUPPLY_PROP_FASTCHARGE_MODE:
+		pval->intval = chip->fastcharge_mode_enabled;
+		break;
 	default:
 		pr_debug("Unsupported property %d\n", psp);
 		break;
@@ -2197,6 +2279,13 @@ static int qg_property_is_writeable(struct power_supply *psy,
 }
 
 static enum power_supply_property qg_psy_props[] = {
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	POWER_SUPPLY_PROP_AUTHENTIC,
+	POWER_SUPPLY_PROP_ROMID,
+	POWER_SUPPLY_PROP_DS_STATUS,
+	POWER_SUPPLY_PROP_PAGE0_DATA,
+#endif
+	POWER_SUPPLY_PROP_CHIP_OK,
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_CAPACITY_RAW,
 	POWER_SUPPLY_PROP_REAL_CAPACITY,
@@ -2232,6 +2321,8 @@ static enum power_supply_property qg_psy_props[] = {
 	POWER_SUPPLY_PROP_POWER_NOW,
 	POWER_SUPPLY_PROP_SCALE_MODE_EN,
 	POWER_SUPPLY_PROP_BATT_AGE_LEVEL,
+	POWER_SUPPLY_PROP_FFC_CHG_TERMINATION_CURRENT,
+	POWER_SUPPLY_PROP_FASTCHARGE_MODE,
 };
 
 static const struct power_supply_desc qg_psy_desc = {
@@ -2244,7 +2335,7 @@ static const struct power_supply_desc qg_psy_desc = {
 	.property_is_writeable = qg_property_is_writeable,
 };
 
-#define DEFAULT_RECHARGE_SOC 95
+#define DEFAULT_RECHARGE_SOC 99
 static int qg_charge_full_update(struct qpnp_qg *chip)
 {
 	union power_supply_propval prop = {0, };
@@ -2275,14 +2366,49 @@ static int qg_charge_full_update(struct qpnp_qg *chip)
 				chip->msoc, health, chip->charge_full,
 				chip->charge_done);
 	if (chip->charge_done && !chip->charge_full) {
-		if (chip->msoc >= 99 && health == POWER_SUPPLY_HEALTH_GOOD) {
-			chip->charge_full = true;
-			qg_dbg(chip, QG_DEBUG_STATUS, "Setting charge_full (0->1) @ msoc=%d\n",
-					chip->msoc);
-		} else if (health != POWER_SUPPLY_HEALTH_GOOD) {
+		if (health == POWER_SUPPLY_HEALTH_GOOD) {
+			if (chip->recharge_soc != DEFAULT_RECHARGE_SOC) {
+				prop.intval = DEFAULT_RECHARGE_SOC;
+				rc = power_supply_set_property(chip->batt_psy,
+						POWER_SUPPLY_PROP_RECHARGE_SOC, &prop);
+				qg_dbg(chip, QG_DEBUG_STATUS, "HEALTH_GOOD set recharge_soc=%d\n",
+						prop.intval);
+
+			}
+			if (chip->msoc >= 99) {
+				chip->charge_full = true;
+				qg_dbg(chip, QG_DEBUG_STATUS, "Setting charge_full (0->1) @ msoc=%d\n",
+						chip->msoc);
+			} else if (chip->msoc <= recharge_soc) {
+				bool usb_present = is_usb_present(chip);
+
+				/*
+				* force a recharge only if SOC <= recharge SOC and
+				* we have not started charging.
+				*/
+				if (usb_present && chip->charge_status != POWER_SUPPLY_STATUS_CHARGING) {
+					/* Force recharge */
+					prop.intval = 0;
+					rc = power_supply_set_property(chip->batt_psy,
+								POWER_SUPPLY_PROP_FORCE_RECHARGE, &prop);
+					if (rc < 0)
+						pr_err("Failed to force recharge rc=%d\n", rc);
+					else
+						qg_dbg(chip, QG_DEBUG_STATUS, "Forced recharge before\n");
+				}
+			}
+		} else {
 			/* terminated in JEITA */
 			qg_dbg(chip, QG_DEBUG_STATUS, "Terminated charging @ msoc=%d\n",
 					chip->msoc);
+			if ((chip->recharge_soc == DEFAULT_RECHARGE_SOC || chip->msoc > chip->recharge_soc + 1)
+						&& chip->msoc != 100) {
+				prop.intval = chip->msoc -1;
+				rc = power_supply_set_property(chip->batt_psy,
+						POWER_SUPPLY_PROP_RECHARGE_SOC, &prop);
+				qg_dbg(chip, QG_DEBUG_STATUS, "HEALTH_WARM set recharge_soc=%d\n",
+						prop.intval);
+			}
 		}
 	} else if ((!chip->charge_done || chip->msoc <= recharge_soc)
 				&& chip->charge_full) {
@@ -2293,8 +2419,7 @@ static int qg_charge_full_update(struct qpnp_qg *chip)
 		 * force a recharge only if SOC <= recharge SOC and
 		 * we have not started charging.
 		 */
-		if ((chip->wa_flags & QG_RECHARGE_SOC_WA) &&
-			input_present && chip->msoc <= recharge_soc &&
+		if (input_present && chip->msoc <= recharge_soc &&
 			chip->charge_status != POWER_SUPPLY_STATUS_CHARGING) {
 			/* Force recharge */
 			prop.intval = 0;
@@ -2515,12 +2640,65 @@ static void qg_sleep_exit_work(struct work_struct *work)
 	vote(chip->awake_votable, SLEEP_EXIT_VOTER, false, 0);
 }
 
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+#define PROFILE_LOAD_PERIOD_MS 1000
+#define BATT_PROFILE_RETRY_COUNT_MAX 5
+static void profile_load_work(struct work_struct *work)
+{
+	int rc = 0, soc = 0, nom_cap_uah;
+	struct qpnp_qg *chip = container_of(work,
+				struct qpnp_qg,
+				profile_load_work.work);
+
+	rc = qg_setup_battery(chip);
+	if (chip->profile_judge_done) {
+		qg_sanitize_sdam(chip);
+		qg_soc_init(chip);
+
+		if (!chip->dt.cl_disable) {
+			/*
+			 * Use FCC @ 25 C and charge-profile for
+			 * Nominal Capacity
+			 */
+			rc = qg_get_nominal_capacity(&nom_cap_uah, 250, true);
+			if (!rc) {
+				rc = cap_learning_post_profile_init(chip->cl,
+						nom_cap_uah);
+				if (rc < 0) {
+					pr_err("Error in cap_learning_post_profile_init rc=%d\n",
+						rc);
+				}
+			}
+		}
+		rc = restore_cycle_count(chip->counter);
+		if (rc < 0) {
+			pr_err("Error in restoring cycle_count, rc=%d\n", rc);
+		}
+		schedule_delayed_work(&chip->ttf->ttf_work, 10000);
+
+		qg_determine_pon_soc(chip);
+		qg_post_init(chip);
+		qg_get_battery_capacity(chip, &soc);
+		pr_info("profile_load_work: QG initialized! battery_profile=%s SOC=%d QG_subtype=%d\n",
+			qg_get_battery_type(chip), soc, chip->qg_subtype);
+	} else {
+		pr_err("profile_load_work is failed.\n");
+		chip->retry_batt_profile++;
+		if (chip->retry_batt_profile < BATT_PROFILE_RETRY_COUNT_MAX) {
+			pr_err("profile_load_work begin to restart.\n");
+			schedule_delayed_work(&chip->profile_load_work,
+					msecs_to_jiffies(PROFILE_LOAD_PERIOD_MS));
+		}
+	}
+}
+#endif
+
 static void qg_status_change_work(struct work_struct *work)
 {
 	struct qpnp_qg *chip = container_of(work,
 			struct qpnp_qg, qg_status_change_work);
 	union power_supply_propval prop = {0, };
-	int rc = 0, batt_temp = 0;
+	int rc = 0, batt_temp = 0, batt_soc_32b = 0;
 	bool input_present = false;
 
 	if (!is_batt_available(chip)) {
@@ -2576,8 +2754,11 @@ static void qg_status_change_work(struct work_struct *work)
 		rc = qg_get_battery_temp(chip, &batt_temp);
 		if (rc < 0) {
 			pr_err("Failed to read BATT_TEMP at PON rc=%d\n", rc);
-		} else if (chip->batt_soc >= 0) {
-			cap_learning_update(chip->cl, batt_temp, chip->batt_soc,
+		} else {
+			batt_soc_32b = div64_u64(
+					chip->batt_soc * BATT_SOC_32BIT,
+					QG_SOC_FULL);
+			cap_learning_update(chip->cl, batt_temp, batt_soc_32b,
 				chip->charge_status, chip->charge_done,
 				input_present, false);
 		}
@@ -2871,6 +3052,13 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 	struct device_node *node = chip->dev->of_node;
 	struct device_node *profile_node;
 	int rc, tuple_len, len, i, avail_age_level = 0;
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	union power_supply_propval pval = {0, };
+	profile_node = ERR_PTR(-ENXIO);
+	if (chip->max_verify_psy == NULL)
+		chip->max_verify_psy = power_supply_get_by_name("batt_verify");
+
+#endif
 
 	chip->batt_node = of_find_node_by_name(node, "qcom,battery-data");
 	if (!chip->batt_node) {
@@ -2898,8 +3086,46 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 			chip->batt_age_level = avail_age_level;
 		}
 	} else {
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+		if (chip->max_verify_psy != NULL) {
+			rc = power_supply_get_property(chip->max_verify_psy,
+						POWER_SUPPLY_PROP_CHIP_OK, &pval);
+			if (rc < 0) {
+				pr_err("qg_load_battery_profile : get romid error.\n");
+			}
+		}
+		if (pval.intval == true) {
+			rc = power_supply_get_property(chip->max_verify_psy,
+						POWER_SUPPLY_PROP_PAGE0_DATA, &pval);
+			if (rc < 0) {
+				pr_err("qg_load_battery_profile : get page0 error.\n");
+				pr_err("[Battery Stress Test]:read page0 error\n");
+			} else {
+				pr_err("[Battery Stress Test]:page0 content[%c]\n", pval.arrayval[0]);
+				if ((pval.arrayval[0] == 'S') || (pval.arrayval[0] == 'X')) {
+					profile_node = of_batterydata_get_best_profile(chip->batt_node,
+						chip->batt_id_ohm / 1000, "j6b-sunwoda-5020mah");
+					chip->profile_judge_done = true;
+				} else if ((pval.arrayval[0] == 'N') || (pval.arrayval[0] == 'A')) {
+					profile_node = of_batterydata_get_best_profile(chip->batt_node,
+						chip->batt_id_ohm / 1000, "j6b-nvt-5020mah");
+					chip->profile_judge_done = true;
+				}
+			}
+		}
+
+		if (chip->profile_judge_done == false) {
+			if (chip->profile_loaded == false) {
+				profile_node = of_batterydata_get_best_profile(chip->batt_node,
+						chip->batt_id_ohm / 1000, "j6b-nvt-5020mah");
+			} else {
+				return 0;
+			}
+		}
+#else
 		profile_node = of_batterydata_get_best_profile(chip->batt_node,
 				chip->batt_id_ohm / 1000, NULL);
+#endif
 	}
 
 	if (IS_ERR(profile_node)) {
@@ -2915,11 +3141,17 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 		return rc;
 	}
 
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	if (chip->profile_loaded == false) {
+#endif
 	rc = qg_batterydata_init(profile_node);
 	if (rc < 0) {
 		pr_err("Failed to initialize battery-profile rc=%d\n", rc);
 		return rc;
 	}
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	}
+#endif
 
 	rc = of_property_read_u32(profile_node, "qcom,max-voltage-uv",
 				&chip->bp.float_volt_uv);
@@ -2935,6 +3167,13 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 		chip->bp.fastchg_curr_ma = -EINVAL;
 	}
 
+	rc = of_property_read_u32(profile_node, "qcom,nom-batt-capacity-mah",
+							&chip->bp.nom_cap_uah);
+	if (rc < 0) {
+		pr_err("battery nominal capacity unavailable, rc:%d\n", rc);
+		chip->bp.nom_cap_uah = -EINVAL;
+	}
+
 	rc = of_property_read_u32(profile_node, "qcom,qg-batt-profile-ver",
 				&chip->bp.qg_profile_version);
 	if (rc < 0) {
@@ -2942,6 +3181,13 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 		chip->bp.qg_profile_version = -EINVAL;
 	}
 
+	rc = of_property_read_u32(profile_node, "mi,ffc-chg-term-current",
+				&chip->bp.ffc_chg_term_current);
+	pr_err("Read mi,ffc-chg-term-current = %d\n", chip->bp.ffc_chg_term_current);
+	if (rc < 0) {
+		pr_err("Failed to read mi,ffc-chg-term-current rc:%d\n", rc);
+		chip->bp.ffc_chg_term_current = -EINVAL;
+	}
 	/*
 	 * Currently step charging thresholds should be read only for Vbatt
 	 * based and not for SOC based.
@@ -3553,6 +3799,7 @@ static int qg_post_init(struct qpnp_qg *chip)
 {
 	u8 status = 0;
 	int rc = 0;
+	u8 reg = 0;
 
 	/* disable all IRQs if profile is not loaded */
 	if (!chip->profile_loaded) {
@@ -3578,6 +3825,9 @@ static int qg_post_init(struct qpnp_qg *chip)
 								rc);
 		return rc;
 	}
+
+	reg = 0x80;
+	qg_write(chip, 0x305E, &reg, 1);
 
 	return 0;
 }
@@ -3762,7 +4012,7 @@ static int qg_alg_init(struct qpnp_qg *chip)
 #define DEFAULT_CL_MAX_LIM_DECIPERC	100
 #define DEFAULT_CL_DELTA_BATT_SOC	10
 #define DEFAULT_CL_WT_START_SOC		15
-#define DEFAULT_SHUTDOWN_TEMP_DIFF	60	/* 6 degC */
+#define DEFAULT_SHUTDOWN_TEMP_DIFF	50	/* 5 degC */
 #define DEFAULT_ESR_QUAL_CURRENT_UA	130000
 #define DEFAULT_ESR_QUAL_VBAT_UV	7000
 #define DEFAULT_ESR_DISABLE_SOC		1000
@@ -4421,6 +4671,11 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	if (!chip)
 		return -ENOMEM;
 
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	chip->retry_batt_profile = 0;
+	chip->profile_judge_done = false;
+#endif
+
 	chip->regmap = dev_get_regmap(pdev->dev.parent, NULL);
 	if (!chip->regmap) {
 		pr_err("Parent regmap is unavailable\n");
@@ -4452,6 +4707,9 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	INIT_WORK(&chip->udata_work, process_udata_work);
 	INIT_WORK(&chip->qg_status_change_work, qg_status_change_work);
 	INIT_DELAYED_WORK(&chip->qg_sleep_exit_work, qg_sleep_exit_work);
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	INIT_DELAYED_WORK(&chip->profile_load_work, profile_load_work);
+#endif
 	mutex_init(&chip->bus_lock);
 	mutex_init(&chip->soc_lock);
 	mutex_init(&chip->data_lock);
@@ -4466,6 +4724,10 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	chip->esr_actual = -EINVAL;
 	chip->esr_nominal = -EINVAL;
 	chip->batt_age_level = -EINVAL;
+
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	chip->max_verify_psy = power_supply_get_by_name("batt_verify");
+#endif
 
 	rc = qg_alg_init(chip);
 	if (rc < 0) {
@@ -4496,6 +4758,13 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 		pr_err("Failed to setup battery, rc=%d\n", rc);
 		return rc;
 	}
+
+#ifdef CONFIG_BATT_VERIFY_BY_DS28E16
+	if (chip->profile_judge_done == false) {
+		schedule_delayed_work(&chip->profile_load_work,
+					msecs_to_jiffies(0));
+	}
+#endif
 
 	rc = qg_register_device(chip);
 	if (rc < 0) {
