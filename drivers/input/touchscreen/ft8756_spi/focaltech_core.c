@@ -403,7 +403,6 @@ void fts_release_all_finger(void)
 #endif
 
 	FTS_FUNC_ENTER();
-	mutex_lock(&fts_data->report_mutex);
 #if FTS_MT_PROTOCOL_B_EN
 	for (finger_count = 0; finger_count < max_touches; finger_count++) {
 		input_mt_slot(input_dev, finger_count);
@@ -417,7 +416,6 @@ void fts_release_all_finger(void)
 
 	fts_data->touchs = 0;
 	fts_data->key_state = 0;
-	mutex_unlock(&fts_data->report_mutex);
 	FTS_FUNC_EXIT();
 }
 
@@ -721,13 +719,11 @@ static void fts_irq_read_report(void)
 
 	ret = fts_read_parse_touchdata(ts_data);
 	if (ret == 0) {
-		mutex_lock(&ts_data->report_mutex);
 #if FTS_MT_PROTOCOL_B_EN
 		fts_input_report_b(ts_data);
 #else
 		fts_input_report_a(ts_data);
 #endif
-		mutex_unlock(&ts_data->report_mutex);
 	}
 
 #if FTS_ESDCHECK_EN
@@ -1481,7 +1477,6 @@ static int fts_ts_probe_entry(struct fts_ts_data *ts_data)
 	}
 
 	spin_lock_init(&ts_data->irq_lock);
-	mutex_init(&ts_data->report_mutex);
 	mutex_init(&ts_data->bus_lock);
 
 	/* Init communication interface */

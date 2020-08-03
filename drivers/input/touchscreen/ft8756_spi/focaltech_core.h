@@ -163,7 +163,6 @@ struct fts_ts_data {
 	struct work_struct resume_work;
 	struct ftxxxx_proc proc;
 	spinlock_t irq_lock;
-	struct mutex report_mutex;
 	struct mutex bus_lock;
 	int irq;
 	int log_level;

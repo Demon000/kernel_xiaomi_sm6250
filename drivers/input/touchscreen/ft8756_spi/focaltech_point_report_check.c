@@ -64,7 +64,6 @@ static void fts_prc_func(struct work_struct *work)
 #endif
 
 	FTS_FUNC_ENTER();
-	mutex_lock(&ts_data->report_mutex);
 
 #if FTS_MT_PROTOCOL_B_EN
 	for (finger_count = 0; finger_count < max_touches; finger_count++) {
@@ -76,8 +75,6 @@ static void fts_prc_func(struct work_struct *work)
 #endif
 	input_report_key(input_dev, BTN_TOUCH, 0);
 	input_sync(input_dev);
-
-	mutex_unlock(&ts_data->report_mutex);
 
 	FTS_FUNC_EXIT();
 }
