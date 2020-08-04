@@ -2734,18 +2734,13 @@ static int smb5_configure_iterm_thresholds_adc(struct smb5 *chip)
 					max_limit_ma);
 		raw_hi_thresh = sign_extend32(raw_hi_thresh, 15);
 		buf = (u8 *)&raw_hi_thresh;
-		rc = smblib_write(chg, CHGR_ADC_ITERM_UP_THD_MSB_REG,
-						buf[1]);
-		if (rc < 0) {
-			dev_err(chg->dev, "Couldn't set term MSB rc=%d\n",
-				rc);
-			return rc;
-		}
+		raw_hi_thresh = buf[1] | (buf[0] << 8);
 
-		rc = smblib_write(chg, CHGR_ADC_ITERM_UP_THD_LSB_REG,
-						buf[0]);
+		rc = smblib_batch_write(chg, CHGR_ADC_ITERM_UP_THD_MSB_REG,
+				(u8 *)&raw_hi_thresh, 2);
 		if (rc < 0) {
-			dev_err(chg->dev, "Couldn't set term LSB rc=%d\n", rc);
+			dev_err(chg->dev, "Couldn't configure ITERM threshold HIGH rc=%d\n",
+					rc);
 			return rc;
 		}
 	}
@@ -3153,10 +3148,7 @@ static int smb5_init_hw(struct smb5 *chip)
 	rc = smblib_masked_write(chg, WD_CFG_REG,
 			WATCHDOG_TRIGGER_AFP_EN_BIT |
 			WDOG_TIMER_EN_ON_PLUGIN_BIT |
-			BARK_WDOG_INT_EN_BIT |
-			WDOG_TIMER_EN_BIT,
-			WDOG_TIMER_EN_ON_PLUGIN_BIT |
-			BARK_WDOG_INT_EN_BIT);
+			BARK_WDOG_INT_EN_BIT, val);
 	if (rc < 0) {
 		pr_err("Couldn't configue WD config rc=%d\n", rc);
 		return rc;
@@ -3190,7 +3182,7 @@ static int smb5_init_hw(struct smb5 *chip)
 	chg->float_cfg = val;
 	/* Update float charger setting*/
 	rc = smblib_masked_write(chg, USBIN_OPTIONS_2_CFG_REG,
-				FLOAT_OPTIONS_MASK, val);
+				FLOAT_OPTIONS_MASK | DCD_TIMEOUT_SEL_BIT, val);
 	if (rc < 0) {
 		dev_err(chg->dev, "Couldn't change float charger setting rc=%d\n",
 			rc);
@@ -3771,19 +3763,6 @@ static int smb5_request_interrupts(struct smb5 *chip)
 			if (rc < 0)
 				return rc;
 		}
-	}
-
-	/*
-	 * WDOG_SNARL_IRQ is required for SW Thermal Regulation WA. In case
-	 * the WA is not required and neither is the snarl timer configuration
-	 * defined, disable the WDOG_SNARL_IRQ to prevent interrupt storm.
-	 */
-
-	if (chg->irq_info[WDOG_SNARL_IRQ].irq && (!(chg->wa_flags &
-				SW_THERM_REGULATION_WA) &&
-				chip->dt.wd_snarl_time_cfg == -EINVAL)) {
-		disable_irq_wake(chg->irq_info[WDOG_SNARL_IRQ].irq);
-		disable_irq_nosync(chg->irq_info[WDOG_SNARL_IRQ].irq);
 	}
 
 	vote(chg->limited_irq_disable_votable, CHARGER_TYPE_VOTER, true, 0);

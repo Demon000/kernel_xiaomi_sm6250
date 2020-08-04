@@ -1001,6 +1001,10 @@ static int pl_fcc_vote_callback(struct votable *votable, void *data,
 
 	rerun_election(chip->pl_disable_votable);
 	/* When FCC changes, trigger psy changed event for CC mode */
+	if (!chip->cp_master_psy)
+		chip->cp_master_psy =
+			power_supply_get_by_name("charge_pump_master");
+
 	if (chip->cp_master_psy)
 		power_supply_changed(chip->cp_master_psy);
 

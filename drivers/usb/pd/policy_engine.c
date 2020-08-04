@@ -2519,6 +2519,7 @@ enable_reg:
 	if (!pd->vbus) {
 		pd->vbus = devm_regulator_get(pd->dev.parent, "vbus");
 		if (IS_ERR(pd->vbus)) {
+			pd->vbus = NULL;
 			usbpd_err(&pd->dev, "Unable to get vbus\n");
 			return -EAGAIN;
 		}
@@ -5044,18 +5045,6 @@ struct usbpd *usbpd_create(struct device *parent)
 			EXTCON_PROP_USB_TYPEC_POLARITY);
 	extcon_set_property_capability(pd->extcon, EXTCON_USB_HOST,
 			EXTCON_PROP_USB_SS);
-
-	pd->vbus = devm_regulator_get(parent, "vbus");
-	if (IS_ERR(pd->vbus)) {
-		ret = PTR_ERR(pd->vbus);
-		goto put_psy;
-	}
-
-	pd->vconn = devm_regulator_get(parent, "vconn");
-	if (IS_ERR(pd->vconn)) {
-		ret = PTR_ERR(pd->vconn);
-		goto put_psy;
-	}
 
 	ret = of_property_read_u32(parent->of_node, "mi,pd_curr_limit",
 			&pd->limit_curr);

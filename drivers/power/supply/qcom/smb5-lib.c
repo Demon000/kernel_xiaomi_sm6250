@@ -7692,8 +7692,7 @@ irqreturn_t wdog_snarl_irq_handler(int irq, void *data)
 		schedule_delayed_work(&chg->thermal_regulation_work, 0);
 	}
 
-	if (chg->step_chg_enabled)
-		power_supply_changed(chg->batt_psy);
+	power_supply_changed(chg->batt_psy);
 
 	return IRQ_HANDLED;
 }
@@ -7709,9 +7708,6 @@ irqreturn_t wdog_bark_irq_handler(int irq, void *data)
 	rc = smblib_write(chg, BARK_BITE_WDOG_PET_REG, BARK_BITE_WDOG_PET_BIT);
 	if (rc < 0)
 		smblib_err(chg, "Couldn't pet the dog rc=%d\n", rc);
-
-	if (chg->step_chg_enabled || chg->sw_jeita_enabled)
-		power_supply_changed(chg->batt_psy);
 
 	return IRQ_HANDLED;
 }

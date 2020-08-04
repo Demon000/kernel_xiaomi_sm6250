@@ -150,14 +150,10 @@
 #define LCM_EXIT_CTRL_REG		0x265D
 
 #define ICHG_SS_DAC_TARGET_REG		0x2660
-#define ICHG_SS_DAC_MAX_REG		0x2661
-#define ICHG_SS_DAC_MIN_REG		0x2662
 #define ICHG_SS_DAC_VALUE_MASK		GENMASK(5, 0)
 #define ICHG_STEP_MA			100
 
 #define VOUT_DAC_TARGET_REG		0x2663
-#define VOUT_DAC_MAX_REG		0x2664
-#define VOUT_DAC_MIN_REG		0x2665
 #define VOUT_DAC_VALUE_MASK		GENMASK(7, 0)
 #define VOUT_1P_MIN_MV			3300
 #define VOUT_1S_MIN_MV			6600
@@ -172,8 +168,6 @@
 #define VOUT_SS_1S_STEP_MV		180
 
 #define IIN_SS_DAC_TARGET_REG		0x2669
-#define IIN_SS_DAC_MAX_REG		0x266A
-#define IIN_SS_DAC_MIN_REG		0x266B
 #define IIN_SS_DAC_VALUE_MASK		GENMASK(6, 0)
 #define IIN_STEP_MA			50
 
@@ -385,24 +379,14 @@ static int smb1398_get_enable_status(struct smb1398_chip *chip)
 
 static int smb1398_get_iin_ma(struct smb1398_chip *chip, int *iin_ma)
 {
-	int rc = 0, ilim, max;
+	int rc = 0;
 	u8 val;
 
 	rc = smb1398_read(chip, IIN_SS_DAC_TARGET_REG, &val);
 	if (rc < 0)
 		return rc;
 
-	ilim = (val & IIN_SS_DAC_VALUE_MASK) * IIN_STEP_MA;
-
-	rc = smb1398_read(chip, IIN_SS_DAC_MAX_REG, &val);
-	if (rc < 0)
-		return rc;
-
-	val = 0x64;//Temporary fix for IIN_SS_DAC_MAX_REG trim
-
-	max = (val & IIN_SS_DAC_VALUE_MASK) * IIN_STEP_MA;
-
-	*iin_ma = min(ilim, max);
+	*iin_ma = (val & IIN_SS_DAC_VALUE_MASK) * IIN_STEP_MA;
 
 	dev_dbg(chip->dev, "get iin_ma = %dmA\n", *iin_ma);
 	return rc;
@@ -411,15 +395,9 @@ static int smb1398_get_iin_ma(struct smb1398_chip *chip, int *iin_ma)
 static int smb1398_set_iin_ma(struct smb1398_chip *chip, int iin_ma)
 {
 	int rc = 0;
-	u8 val, max, temp;
+	u8 val;
 
-	rc = smb1398_read(chip, IIN_SS_DAC_MAX_REG, &max);
-	if (rc < 0)
-		return rc;
-
-	max = 0x64;//Temporary fix for IIN_SS_DAC_MAX_REG trim
-	temp = (u8)(iin_ma / IIN_STEP_MA);
-	val = min(temp, max);
+	val = iin_ma / IIN_STEP_MA;
 	rc = smb1398_masked_write(chip, IIN_SS_DAC_TARGET_REG,
 			IIN_SS_DAC_VALUE_MASK, val);
 	if (rc < 0)
@@ -432,18 +410,12 @@ static int smb1398_set_iin_ma(struct smb1398_chip *chip, int iin_ma)
 static int smb1398_set_ichg_ma(struct smb1398_chip *chip, int ichg_ma)
 {
 	int rc = 0;
-	u8 val, max, temp;
+	u8 val;
 
 	if (ichg_ma < 0 || ichg_ma > ICHG_SS_DAC_VALUE_MASK * ICHG_STEP_MA)
 		return rc;
 
-	rc = smb1398_read(chip, ICHG_SS_DAC_MAX_REG, &max);
-	if (rc < 0)
-		return rc;
-
-	max = 0x3C;//Temporary fix for ICHG_SS_DAC_MAX_REG trim
-	temp = (u8)(ichg_ma / ICHG_STEP_MA);
-	val = min(temp, max);
+	val = ichg_ma / ICHG_STEP_MA;
 	rc = smb1398_masked_write(chip, ICHG_SS_DAC_TARGET_REG,
 			ICHG_SS_DAC_VALUE_MASK, val);
 
@@ -453,24 +425,14 @@ static int smb1398_set_ichg_ma(struct smb1398_chip *chip, int ichg_ma)
 
 static int smb1398_get_ichg_ma(struct smb1398_chip *chip, int *ichg_ma)
 {
-	int rc = 0, ichg, max;
+	int rc = 0;
 	u8 val;
 
 	rc = smb1398_read(chip, ICHG_SS_DAC_TARGET_REG, &val);
 	if (rc < 0)
 		return rc;
 
-	ichg = (val & ICHG_SS_DAC_VALUE_MASK) * ICHG_STEP_MA;
-
-	rc = smb1398_read(chip, ICHG_SS_DAC_MAX_REG, &val);
-	if (rc < 0)
-		return rc;
-
-	val = 0x3C;//Temporary fix for ICHG_SS_DAC_MAX_REG trim
-
-	max = (val & ICHG_SS_DAC_VALUE_MASK) * ICHG_STEP_MA;
-
-	*ichg_ma = min(ichg, max);
+	*ichg_ma = (val & ICHG_SS_DAC_VALUE_MASK) * ICHG_STEP_MA;
 
 	dev_dbg(chip->dev, "get ichg %dmA\n", *ichg_ma);
 	return 0;
@@ -496,24 +458,16 @@ static int smb1398_set_1s_vout_mv(struct smb1398_chip *chip, int vout_mv)
 
 static int smb1398_get_1s_vout_mv(struct smb1398_chip *chip, int *vout_mv)
 {
-	int rc, vout, max;
+	int rc;
 	u8 val;
 
 	rc = smb1398_read(chip, VOUT_DAC_TARGET_REG, &val);
 	if (rc < 0)
 		return rc;
 
-	vout = (val & VOUT_DAC_VALUE_MASK) * VOUT_1S_STEP_MV +
+	*vout_mv = (val & VOUT_DAC_VALUE_MASK) * VOUT_1S_STEP_MV +
 		VOUT_1S_MIN_MV;
 
-	rc = smb1398_read(chip, VOUT_DAC_MAX_REG, &val);
-	if (rc < 0)
-		return rc;
-
-	max = (val & VOUT_DAC_VALUE_MASK) * VOUT_1S_STEP_MV +
-		VOUT_1S_MIN_MV;
-
-	*vout_mv = min(vout, max);
 	return 0;
 }
 
