@@ -1,5 +1,4 @@
 /* Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
- * Copyright (C) 2020 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -14,15 +13,7 @@
 #ifndef __STEP_CHG_H__
 #define __STEP_CHG_H__
 
-#define MAX_STEP_CHG_ENTRIES	5
-
-#define BATT_CP_COOL_THRESHOLD		100
-#define BATT_CP_WARM_THRESHOLD		450
-
-#define BATT_COOL_THRESHOLD		150
-#define BATT_WARM_THRESHOLD		450
-
-#define HVDCP3_CLASS_B_27W		2
+#define MAX_STEP_CHG_ENTRIES	8
 
 struct step_chg_jeita_param {
 	u32			psy_prop;
