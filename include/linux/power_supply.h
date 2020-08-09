@@ -367,6 +367,22 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_SERIAL_NUMBER,
 	POWER_SUPPLY_PROP_BATTERY_TYPE,
 	POWER_SUPPLY_PROP_CYCLE_COUNTS,
+
+	/* Battery verification */
+	POWER_SUPPLY_PROP_ROMID,
+	POWER_SUPPLY_PROP_DS_STATUS,
+	POWER_SUPPLY_PROP_PAGENUMBER,
+	POWER_SUPPLY_PROP_PAGEDATA,
+	POWER_SUPPLY_PROP_AUTHEN_RESULT,
+	POWER_SUPPLY_PROP_SESSION_SEED,
+	POWER_SUPPLY_PROP_S_SECRET,
+	POWER_SUPPLY_PROP_CHALLENGE,
+	POWER_SUPPLY_PROP_AUTH_ANON,
+	POWER_SUPPLY_PROP_AUTH_BDCONST,
+	POWER_SUPPLY_PROP_PAGE0_DATA,
+	POWER_SUPPLY_PROP_PAGE1_DATA,
+	POWER_SUPPLY_PROP_VERIFY_MODEL_NAME,
+	POWER_SUPPLY_PROP_CHIP_OK,
 };
 
 enum power_supply_type {
@@ -394,6 +410,7 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_UFP,			/* Type-C UFP */
 	POWER_SUPPLY_TYPE_DFP,			/* Type-C DFP */
 	POWER_SUPPLY_TYPE_CHARGE_PUMP,		/* Charge Pump */
+	POWER_SUPPLY_TYPE_BATT_VERIFY,		/* Battery verification */
 };
 
 /* Indicates USB Type-C CC connection status */
@@ -435,6 +452,7 @@ union power_supply_propval {
 	int intval;
 	const char *strval;
 	int64_t int64val;
+	unsigned char arrayval[50];
 };
 
 struct device_node;

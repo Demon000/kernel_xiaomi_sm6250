@@ -59,6 +59,10 @@ module_param_named(
 
 static int qg_process_rt_fifo(struct qpnp_qg *chip);
 static int qg_load_battery_profile(struct qpnp_qg *chip);
+static int qg_determine_pon_soc(struct qpnp_qg *chip);
+static int qg_sanitize_sdam(struct qpnp_qg *chip);
+static int qg_setup_battery(struct qpnp_qg *chip);
+static int qg_post_init(struct qpnp_qg *chip);
 
 static bool is_battery_present(struct qpnp_qg *chip)
 {
@@ -2599,6 +2603,80 @@ out:
 	pm_relax(chip->dev);
 }
 
+#define BATT_PROFILE_RETRY_COUNT_MAX 5
+#define BATT_PROFILE_WAIT_MS 1000
+static int batt_profile_retry_count = 0;
+static void profile_load_work(struct work_struct *work)
+{
+	struct qpnp_qg *chip = container_of(work, struct qpnp_qg,
+			profile_load_work.work);
+	int rc = 0, soc = 0, nom_cap_uah;
+
+	rc = qg_setup_battery(chip);
+	if (rc < 0) {
+		pr_err("Failed to setup battery, rc=%d\n", rc);
+		return;
+	}
+
+	if (!chip->profile_judge_done &&
+			++batt_profile_retry_count < BATT_PROFILE_RETRY_COUNT_MAX) {
+		schedule_delayed_work(&chip->profile_load_work,
+				msecs_to_jiffies(BATT_PROFILE_WAIT_MS));
+		return;
+	}
+
+	rc = qg_sanitize_sdam(chip);
+	if (rc < 0) {
+		pr_err("Failed to sanitize SDAM, rc=%d\n", rc);
+		return;
+	}
+
+	rc = qg_soc_init(chip);
+	if (rc < 0) {
+		pr_err("Failed to initialize SOC scaling init rc=%d\n", rc);
+		return;
+	}
+
+	if (!chip->dt.cl_disable) {
+		/*
+		 * Use FCC @ 25 C and charge-profile for
+		 * Nominal Capacity
+		 */
+		rc = qg_get_nominal_capacity(&nom_cap_uah, 250, true);
+		if (!rc) {
+			rc = cap_learning_post_profile_init(chip->cl,
+					nom_cap_uah);
+			if (rc < 0) {
+				pr_err("Error in cap_learning_post_profile_init rc=%d\n",
+					rc);
+				return;
+			}
+		}
+	}
+	rc = restore_cycle_count(chip->counter);
+	if (rc < 0) {
+		pr_err("Error in restoring cycle_count, rc=%d\n", rc);
+		return;
+	}
+	schedule_delayed_work(&chip->ttf->ttf_work, 10000);
+
+	rc = qg_determine_pon_soc(chip);
+	if (rc < 0) {
+		pr_err("Failed to determine initial state, rc=%d\n", rc);
+		return;
+	}
+
+	rc = qg_post_init(chip);
+	if (rc < 0) {
+		pr_err("Failed in qg_post_init rc=%d\n", rc);
+		return;
+	}
+
+	qg_get_battery_capacity(chip, &soc);
+	pr_info("QG initialized! battery_profile=%s SOC=%d QG_subtype=%d\n",
+			qg_get_battery_type(chip), soc, chip->qg_subtype);
+}
+
 static int qg_notifier_cb(struct notifier_block *nb,
 			unsigned long event, void *data)
 {
@@ -2879,6 +2957,10 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 	struct device_node *node = chip->dev->of_node;
 	struct device_node *profile_node;
 	int rc, tuple_len, len, i, avail_age_level = 0;
+	union power_supply_propval pval = {0, };
+
+	if (!chip->max_verify_psy)
+		chip->max_verify_psy = power_supply_get_by_name("batt_verify");
 
 	chip->batt_node = of_find_node_by_name(node, "qcom,battery-data");
 	if (!chip->batt_node) {
@@ -2905,9 +2987,44 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 					chip->batt_age_level, avail_age_level);
 			chip->batt_age_level = avail_age_level;
 		}
+	} else if (chip->dt.batt_verify_enable && chip->max_verify_psy) {
+		rc = power_supply_get_property(chip->max_verify_psy,
+					POWER_SUPPLY_PROP_CHIP_OK, &pval);
+		if (rc < 0) {
+			pr_err("error in retrieving batt verify chip ok\n", rc);
+			goto batt_verify_fail;
+		}
+
+		if (!pval.intval) {
+			pr_err("batt verify chip not ok\n", rc);
+			goto batt_verify_fail;
+		}
+
+		rc = power_supply_get_property(chip->max_verify_psy,
+					POWER_SUPPLY_PROP_PAGE0_DATA, &pval);
+		if (rc < 0) {
+			pr_err("error in retrieving batt verify page0 data\n", rc);
+			goto batt_verify_fail;
+		}
+
+		if (pval.arrayval[0] == 'S' || pval.arrayval[0] == 'X')
+			profile_node = of_batterydata_get_best_profile(chip->batt_node,
+					chip->batt_id_ohm / 1000, "j6b-sunwoda-5020mah");
+		else if (pval.arrayval[0] == 'N' || pval.arrayval[0] == 'A')
+			profile_node = of_batterydata_get_best_profile(chip->batt_node,
+					chip->batt_id_ohm / 1000, "j6b-nvt-5020mah");
+		else
+			goto batt_verify_fail;
+
+		chip->profile_judge_done = true;
+	} else if (chip->dt.batt_verify_enable && !chip->max_verify_psy) {
+batt_verify_fail:
+		profile_node = of_batterydata_get_best_profile(chip->batt_node,
+				chip->batt_id_ohm / 1000, "j6b-nvt-5020mah");
 	} else {
 		profile_node = of_batterydata_get_best_profile(chip->batt_node,
 				chip->batt_id_ohm / 1000, NULL);
+		chip->profile_judge_done = true;
 	}
 
 	if (IS_ERR(profile_node)) {
@@ -4117,6 +4234,9 @@ static int qg_parse_dt(struct qpnp_qg *chip)
 	chip->dt.multi_profile_load = of_property_read_bool(node,
 					"qcom,multi-profile-load");
 
+	chip->dt.batt_verify_enable = of_property_read_bool(node,
+					"mi,batt-verify");
+
 	/* Capacity learning params*/
 	if (!chip->dt.cl_disable) {
 		chip->dt.cl_feedback_on = of_property_read_bool(node,
@@ -4440,7 +4560,7 @@ static const struct dev_pm_ops qpnp_qg_pm_ops = {
 
 static int qpnp_qg_probe(struct platform_device *pdev)
 {
-	int rc = 0, soc = 0, nom_cap_uah;
+	int rc = 0;
 	struct qpnp_qg *chip;
 
 	chip = devm_kzalloc(&pdev->dev, sizeof(*chip), GFP_KERNEL);
@@ -4478,6 +4598,7 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	INIT_WORK(&chip->udata_work, process_udata_work);
 	INIT_WORK(&chip->qg_status_change_work, qg_status_change_work);
 	INIT_DELAYED_WORK(&chip->qg_sleep_exit_work, qg_sleep_exit_work);
+	INIT_DELAYED_WORK(&chip->profile_load_work, profile_load_work);
 	mutex_init(&chip->bus_lock);
 	mutex_init(&chip->soc_lock);
 	mutex_init(&chip->data_lock);
@@ -4492,6 +4613,8 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	chip->esr_actual = -EINVAL;
 	chip->esr_nominal = -EINVAL;
 	chip->batt_age_level = -EINVAL;
+	chip->max_verify_psy = power_supply_get_by_name("batt_verify");
+	chip->profile_judge_done = false;
 
 	rc = qg_alg_init(chip);
 	if (rc < 0) {
@@ -4517,59 +4640,13 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	rc = qg_setup_battery(chip);
-	if (rc < 0) {
-		pr_err("Failed to setup battery, rc=%d\n", rc);
-		return rc;
-	}
+	schedule_delayed_work(&chip->profile_load_work,
+			msecs_to_jiffies(0));
 
 	rc = qg_register_device(chip);
 	if (rc < 0) {
 		pr_err("Failed to register QG char device, rc=%d\n", rc);
 		return rc;
-	}
-
-	rc = qg_sanitize_sdam(chip);
-	if (rc < 0) {
-		pr_err("Failed to sanitize SDAM, rc=%d\n", rc);
-		return rc;
-	}
-
-	rc = qg_soc_init(chip);
-	if (rc < 0) {
-		pr_err("Failed to initialize SOC scaling init rc=%d\n", rc);
-		return rc;
-	}
-
-	if (chip->profile_loaded) {
-		if (!chip->dt.cl_disable) {
-			/*
-			 * Use FCC @ 25 C and charge-profile for
-			 * Nominal Capacity
-			 */
-			rc = qg_get_nominal_capacity(&nom_cap_uah, 250, true);
-			if (!rc) {
-				rc = cap_learning_post_profile_init(chip->cl,
-						nom_cap_uah);
-				if (rc < 0) {
-					pr_err("Error in cap_learning_post_profile_init rc=%d\n",
-						rc);
-					return rc;
-				}
-			}
-		}
-		rc = restore_cycle_count(chip->counter);
-		if (rc < 0) {
-			pr_err("Error in restoring cycle_count, rc=%d\n", rc);
-			return rc;
-		}
-		schedule_delayed_work(&chip->ttf->ttf_work, 10000);
-	}
-
-	rc = qg_determine_pon_soc(chip);
-	if (rc < 0) {
-		pr_err("Failed to determine initial state, rc=%d\n", rc);
-		goto fail_device;
 	}
 
 	chip->awake_votable = create_votable("QG_WS", VOTE_SET_ANY,
@@ -4616,16 +4693,6 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 		pr_err("Failed to register QG interrupts, rc=%d\n", rc);
 		goto fail_votable;
 	}
-
-	rc = qg_post_init(chip);
-	if (rc < 0) {
-		pr_err("Failed in qg_post_init rc=%d\n", rc);
-		goto fail_votable;
-	}
-
-	qg_get_battery_capacity(chip, &soc);
-	pr_info("QG initialized! battery_profile=%s SOC=%d QG_subtype=%d\n",
-			qg_get_battery_type(chip), soc, chip->qg_subtype);
 
 	return rc;
 
