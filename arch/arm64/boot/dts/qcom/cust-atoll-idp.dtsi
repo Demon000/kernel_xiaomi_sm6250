@@ -103,6 +103,10 @@
 	synaptics_tcm@20 {
 		status = "disabled";
 	};
+
+	atmel_mxt_ts@4a {
+		status = "disabled";
+	};
 };
 
 &dsi_ft8756_huaxing_video {
