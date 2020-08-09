@@ -12,7 +12,7 @@
 
 /**************************** CONFIGURATION BEGIN ****************************/
 static const int little_cpu_freqs[] = {
-#if 1
+#if 0
 	300000,
 	576000,
 	768000,
@@ -27,7 +27,7 @@ static const int little_cpu_freqs[] = {
 };
 
 static const int big_cpu_freqs[] = {
-#if 0
+#if 1
 	652800,
 	825600,
 	979200,
@@ -54,7 +54,7 @@ static const unsigned long perf_cpu_bits = 0b11000000;
 const struct cpumask *const cpu_perf_mask = to_cpumask(&perf_cpu_bits);
 
 /* WARNING: Don't bench both clusters at the same time */
-const unsigned long cpu_bench_mask = lp_cpu_bits;
+const unsigned long cpu_bench_mask = perf_cpu_bits;
 /***************************** CONFIGURATION END *****************************/
 
 /* Delay before starting to ensure nothing left from init will interfere */
