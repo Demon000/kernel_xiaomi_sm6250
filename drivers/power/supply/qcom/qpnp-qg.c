@@ -2879,6 +2879,7 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 	struct device_node *node = chip->dev->of_node;
 	struct device_node *profile_node;
 	int rc, tuple_len, len, i, avail_age_level = 0;
+	union power_supply_propval pval = {0, };
 
 	chip->batt_node = of_find_node_by_name(node, "qcom,battery-data");
 	if (!chip->batt_node) {
@@ -2905,6 +2906,38 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 					chip->batt_age_level, avail_age_level);
 			chip->batt_age_level = avail_age_level;
 		}
+	} else if (chip->dt.batt_verify_enable && chip->max_verify_psy) {
+		rc = power_supply_get_property(chip->max_verify_psy,
+					POWER_SUPPLY_PROP_CHIP_OK, &pval);
+		if (rc < 0) {
+			pr_err("error in retrieving batt verify chip ok\n", rc);
+			goto batt_verify_fail;
+		}
+
+		if (!pval.intval) {
+			pr_err("batt verify chip not ok\n", rc);
+			goto batt_verify_fail;
+		}
+
+		rc = power_supply_get_property(chip->max_verify_psy,
+					POWER_SUPPLY_PROP_PAGE0_DATA, &pval);
+		if (rc < 0) {
+			pr_err("error in retrieving batt verify page0 data\n", rc);
+			goto batt_verify_fail;
+		}
+
+		if (pval.arrayval[0] == 'S' || pval.arrayval[0] == 'X')
+			profile_node = of_batterydata_get_best_profile(chip->batt_node,
+					chip->batt_id_ohm / 1000, "j6b-sunwoda-5020mah");
+		else if (pval.arrayval[0] == 'N' || pval.arrayval[0] == 'A')
+			profile_node = of_batterydata_get_best_profile(chip->batt_node,
+					chip->batt_id_ohm / 1000, "j6b-nvt-5020mah");
+		else
+			goto batt_verify_fail;
+	} else if (chip->dt.batt_verify_enable && !chip->max_verify_psy) {
+batt_verify_fail:
+		profile_node = of_batterydata_get_best_profile(chip->batt_node,
+				chip->batt_id_ohm / 1000, "j6b-nvt-5020mah");
 	} else {
 		profile_node = of_batterydata_get_best_profile(chip->batt_node,
 				chip->batt_id_ohm / 1000, NULL);
@@ -4117,6 +4150,9 @@ static int qg_parse_dt(struct qpnp_qg *chip)
 	chip->dt.multi_profile_load = of_property_read_bool(node,
 					"qcom,multi-profile-load");
 
+	chip->dt.batt_verify_enable = of_property_read_bool(node,
+					"mi,batt-verify");
+
 	/* Capacity learning params*/
 	if (!chip->dt.cl_disable) {
 		chip->dt.cl_feedback_on = of_property_read_bool(node,
@@ -4492,6 +4528,7 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	chip->esr_actual = -EINVAL;
 	chip->esr_nominal = -EINVAL;
 	chip->batt_age_level = -EINVAL;
+	chip->max_verify_psy = power_supply_get_by_name("batt_verify");
 
 	rc = qg_alg_init(chip);
 	if (rc < 0) {
@@ -4503,6 +4540,11 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	if (rc < 0) {
 		pr_err("Failed to parse DT, rc=%d\n", rc);
 		return rc;
+	}
+
+	if (chip->dt.batt_verify_enable && !chip->max_verify_psy) {
+		pr_err("DS28E16 power supply not registered, rc=%d\n", rc);
+		return -EPROBE_DEFER;
 	}
 
 	rc = qg_hw_init(chip);
