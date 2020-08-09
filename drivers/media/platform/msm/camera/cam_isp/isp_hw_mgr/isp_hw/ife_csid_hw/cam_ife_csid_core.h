@@ -52,7 +52,6 @@
 #define CSID_CSI2_RX_ERROR_TG_FIFO_OVERFLOW       BIT(26)
 #define CSID_CSI2_RX_INFO_RST_DONE                BIT(27)
 
-#define CSID_TOP_IRQ_DONE                         BIT(0)
 #define CSID_PATH_INFO_RST_DONE                   BIT(1)
 #define CSID_PATH_ERROR_FIFO_OVERFLOW             BIT(2)
 #define CSID_PATH_INFO_SUBSAMPLED_EOF             BIT(3)
@@ -310,7 +309,6 @@ struct cam_ife_csid_common_reg_offset {
 	uint32_t num_rdis;
 	uint32_t num_pix;
 	uint32_t num_ppp;
-	uint32_t csid_reg_rst_stb;
 	uint32_t csid_rst_stb;
 	uint32_t csid_rst_stb_sw_all;
 	uint32_t path_rst_stb_all;
