@@ -167,6 +167,10 @@
 	mi,qc3p5-ffc-batt;
 };
 
+&pm6150_qg {
+	mi,batt-verify;
+};
+
 &pm6150_pdphy {
 	mi,pd_curr_limit = <1>;
 	mi,pd_max_curr_limit = <4000000>;

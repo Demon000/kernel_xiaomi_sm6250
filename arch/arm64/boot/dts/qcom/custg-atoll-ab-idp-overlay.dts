@@ -174,6 +174,10 @@
 	mi,pd_vbus_max_limit = <9500000>;
 };
 
+&pm6150_qg {
+	mi,batt-verify;
+};
+
 &tx_swr_gpios {
 	qcom,chip-wakeup-reg = <0x01FFB000>;
 	qcom,chip-wakeup-maskbit = <0>;

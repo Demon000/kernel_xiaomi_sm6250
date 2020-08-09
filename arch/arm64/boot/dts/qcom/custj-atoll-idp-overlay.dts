@@ -172,3 +172,7 @@
 	mi,limit_pd_vbus = <1>;
 	mi,pd_vbus_max_limit = <9500000>;
 };
+
+&pm6150_qg {
+	mi,batt-verify;
+};
