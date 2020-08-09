@@ -11,73 +11,49 @@
 
 /**************************** CONFIGURATION BEGIN ****************************/
 static const int little_cpu_freqs[] = {
-#if 0
+#if 1
 	300000,
-	364800,
-	441600,
-	518400,
-	595200,
-	672000,
-	748800,
-	825600,
-	883200,
-	960000,
-	1036800,
-	1094400,
-	1171200,
+	576000,
+	768000,
+	1017600,
 	1248000,
 	1324800,
-	1401600,
-	1478400,
-	1555200,
-	1670400,
-	1747200,
-	1824000,
-	1900800
+	1516800,
+	1612800,
+	1708800,
+	1804800
 #endif
 };
 
 static const int big_cpu_freqs[] = {
 #if 0
-	300000,
-	345600,
-	422400,
-	499200,
-	576000,
 	652800,
-	729600,
-	806400,
-	902400,
+	825600,
 	979200,
-	1056000,
-	1132800,
-	1190400,
+	1113600,
 	1267200,
-	1344000,
-	1420800,
-	1497600,
-	1574400,
-	1651200,
-	1728000,
-	1804800,
-	1881600,
-	1958400,
-	2035200,
+	1555200,
+	1708800,
+	1843200,
+	1900800,
+	1996800,
 	2112000,
 	2208000,
-	2265600,
 	2323200,
-	2342400,
-	2361600,
-	2457600
+	2400000
 #endif
 };
 
 /* Uncomment to disable power readings */
 #define MEASURE_POWER
 
+static const unsigned long lp_cpu_bits = 0b00111111;
+const struct cpumask *const cpu_lp_mask = to_cpumask(&lp_cpu_bits);
+static const unsigned long perf_cpu_bits = 0b11000000;
+const struct cpumask *const cpu_perf_mask = to_cpumask(&perf_cpu_bits);
+
 /* WARNING: Don't bench both clusters at the same time */
-const unsigned long cpu_bench_mask = 0b11110000;
+const unsigned long cpu_bench_mask = lp_cpu_bits;
 /***************************** CONFIGURATION END *****************************/
 
 /* Delay before starting to ensure nothing left from init will interfere */
