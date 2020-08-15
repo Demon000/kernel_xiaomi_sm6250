@@ -137,6 +137,8 @@ int fts_write(u8 *writebuf, u32 writelen)
 	u32 txlen_need = writelen + SPI_HEADER_LENGTH + ts_data->dummy_byte;
 	u32 datalen = writelen - 1;
 
+	FTS_ERROR("called by %pS\n", __builtin_return_address(0));
+
 	if (!writebuf || !writelen) {
 		FTS_ERROR("writebuf/len is invalid");
 		return -EINVAL;
@@ -201,7 +203,7 @@ err_write:
 int fts_write_reg(u8 addr, u8 value)
 {
 	u8 writebuf[2] = { 0 };
-
+	FTS_ERROR("called by %pS\n", __builtin_return_address(0));
 	writebuf[0] = addr;
 	writebuf[1] = value;
 	return fts_write(writebuf, 2);
@@ -218,6 +220,8 @@ int fts_read(u8 *cmd, u32 cmdlen, u8 *data, u32 datalen)
 	u32 txlen_need = datalen + SPI_HEADER_LENGTH + ts_data->dummy_byte;
 	u8 ctrl = READ_CMD;
 	u32 dp = 0;
+
+	FTS_ERROR("called by %pS\n", __builtin_return_address(0));
 
 	if (!cmd || !cmdlen || !data || !datalen) {
 		FTS_ERROR("cmd/cmdlen/data/datalen is invalid");
@@ -292,6 +296,7 @@ err_read:
 
 int fts_read_reg(u8 addr, u8 *value)
 {
+	FTS_ERROR("called by %pS\n", __builtin_return_address(0));
 	return fts_read(&addr, 1, value, 1);
 }
 
