@@ -59,6 +59,32 @@ EXPORT_SYMBOL(g_touchscreen_usb_pulgin);
 static void update_sw_icl_max(struct smb_charger *chg, int pst);
 static int smblib_get_prop_typec_mode(struct smb_charger *chg);
 
+int lct_check_hwversion(void)
+{
+	int india_or_global = 0;
+	int project_number = 0;
+	int major_number = 0;
+
+	//get hwversion number
+	project_number = board_id_get_hwversion_product_num();
+	major_number = board_id_get_hwversion_major_num();
+
+	if ((project_number == 1) && (major_number%10 == 0))
+		india_or_global = INDIA_HWVERSION;
+
+	if ((project_number == 1) && ((major_number%10 == 1)
+		|| (major_number%10 == 2)))
+		india_or_global = GLOBAL_HWVERSION;
+
+	if ((project_number == 3) && (major_number%10 == 0))
+		india_or_global = VDF_HWVERSION;
+
+	if ((project_number == 5) && (major_number%10 == 0))
+		india_or_global = JAPAN_HWVERSION;
+
+	return india_or_global;
+}
+
 int smblib_read(struct smb_charger *chg, u16 addr, u8 *val)
 {
 	unsigned int value;

@@ -22,6 +22,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/extcon.h>
 #include <linux/usb/class-dual-role.h>
+#include <linux/board_id.h>
 #include "storm-watch.h"
 #include "battery.h"
 
@@ -612,6 +613,12 @@ struct smb_charger {
 	/* workarounds */
 	bool			snk_debug_acc_detected;
 };
+
+#define INDIA_HWVERSION			1
+#define GLOBAL_HWVERSION		2
+#define VDF_HWVERSION                  3
+#define JAPAN_HWVERSION               4
+int lct_check_hwversion(void);
 
 int smblib_read(struct smb_charger *chg, u16 addr, u8 *val);
 int smblib_masked_write(struct smb_charger *chg, u16 addr, u8 mask, u8 val);
