@@ -144,7 +144,10 @@ int fts_write(u8 *writebuf, u32 writelen)
 		return -EINVAL;
 	}
 
-	mutex_lock(&ts_data->bus_lock);
+	if (!mutex_trylock(&ts_data->bus_lock)) {
+		FTS_ERROR("lock blocked\n");
+		mutex_lock(&ts_data->bus_lock);
+	}
 	if (txlen_need > SPI_BUF_LENGTH) {
 		txbuf = kzalloc(txlen_need, GFP_KERNEL);
 		if (NULL == txbuf) {
@@ -228,7 +231,10 @@ int fts_read(u8 *cmd, u32 cmdlen, u8 *data, u32 datalen)
 		return -EINVAL;
 	}
 
-	mutex_lock(&ts_data->bus_lock);
+	if (!mutex_trylock(&ts_data->bus_lock)) {
+		FTS_ERROR("lock blocked\n");
+		mutex_lock(&ts_data->bus_lock);
+	}
 	if (txlen_need > SPI_BUF_LENGTH) {
 		txbuf = kzalloc(txlen_need, GFP_KERNEL);
 		if (NULL == txbuf) {
