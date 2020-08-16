@@ -5154,6 +5154,7 @@ unsuspend_input:
 
 	/* Workaround for non-QC2.0-compliant chargers follows */
 	if (!chg->qc2_unsupported_voltage &&
+			!chg->qc2_unsupported &&
 			apsd->pst == POWER_SUPPLY_TYPE_USB_HVDCP) {
 		rc = smblib_read(chg, QC_CHANGE_STATUS_REG, &stat);
 		if (rc < 0)
@@ -5199,6 +5200,23 @@ unsuspend_input:
 					rc);
 
 		smblib_rerun_apsd(chg);
+
+		rc = smblib_force_vbus_voltage(chg, FORCE_5V_BIT);
+		if (rc < 0)
+			pr_err("Failed to force 5V\n");
+
+		rc = smblib_usb_pd_adapter_allowance_override(chg, FORCE_5V);
+		if (rc < 0)
+			pr_err("Failed to set adapter allowance to 5V\n");
+
+		rc = smblib_set_opt_switcher_freq(chg, chg->chg_freq.freq_5V);
+		if (rc < 0)
+			pr_err("Failed to set chg_freq.freq_5V\n");
+
+		vote(chg->usb_icl_votable, QC2_UNSUPPORTED_VOTER, true,
+				QC2_UNSUPPORTED_UA);
+
+		chg->qc2_unsupported = true;
 	}
 
 	return IRQ_HANDLED;
@@ -5841,7 +5859,8 @@ static void smblib_handle_hvdcp_3p0_auth_done(struct smb_charger *chg,
 				msecs_to_jiffies(APSD_EXTENDED_TIMEOUT_MS)
 				+ jiffies);
 		}
-	} else if (apsd_result->bit & QC_2P0_BIT) {
+	} else if (apsd_result->bit & QC_2P0_BIT
+			&& !chg->qc2_unsupported) {
 		rc = smblib_force_vbus_voltage(chg, FORCE_9V_BIT);
 		vote(chg->usb_icl_votable, SW_ICL_MAX_VOTER, true,
 				HVDCP2_CURRENT_UA);
@@ -6296,6 +6315,7 @@ static void typec_src_removal(struct smb_charger *chg)
 	/* reset our own voters */
 	vote(chg->fcc_votable, CLASSA_QC_FCC_VOTER, false, 0);
 	vote(chg->usb_icl_votable, QC_A_CP_ICL_MAX_VOTER, false, 0);
+	vote(chg->usb_icl_votable, QC2_UNSUPPORTED_VOTER, false, 0);
 
 	/* Remove SW thermal regulation WA votes */
 	vote(chg->usb_icl_votable, SW_THERM_REGULATION_VOTER, false, 0);
@@ -6389,6 +6409,7 @@ static void typec_src_removal(struct smb_charger *chg)
 	chg->is_qc_class_a = false;
 	chg->is_qc_class_b = false;
 	chg->high_vbus_detected = false;
+	chg->qc2_unsupported = false;
 
 	del_timer_sync(&chg->apsd_timer);
 	chg->apsd_ext_timeout = false;
