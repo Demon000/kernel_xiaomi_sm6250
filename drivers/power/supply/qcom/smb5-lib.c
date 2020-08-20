@@ -28,15 +28,6 @@
 #include "storm-watch.h"
 #include "schgm-flash.h"
 
-typedef struct touchscreen_usb_piugin_data{
-	bool valid;
-	bool usb_plugged_in;
-	void (*event_callback)(void);
-} touchscreen_usb_piugin_data_t;
-
-touchscreen_usb_piugin_data_t g_touchscreen_usb_pulgin = {0};
-EXPORT_SYMBOL(g_touchscreen_usb_pulgin);
-
 #define smblib_err(chg, fmt, ...)		\
 	pr_err("%s: %s: " fmt, chg->name,	\
 		__func__, ##__VA_ARGS__)	\
@@ -5242,11 +5233,6 @@ void smblib_usb_plugin_locked(struct smb_charger *chg)
 		dual_role_instance_changed(chg->dual_role);
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: usbin-plugin %s\n",
 					vbus_rising ? "attached" : "detached");
-
-	g_touchscreen_usb_pulgin.usb_plugged_in = vbus_rising;
-	if (g_touchscreen_usb_pulgin.valid){
-		g_touchscreen_usb_pulgin.event_callback();
-	}
 }
 
 irqreturn_t usb_plugin_irq_handler(int irq, void *data)
