@@ -2987,8 +2987,6 @@ static int smb5_determine_initial_status(struct smb5 *chip)
 	struct smb_charger *chg = &chip->chg;
 	union power_supply_propval val;
 	int rc;
-	int retries = 0;
-	u8 val1 = 0, val2 = 0;
 
 	rc = smblib_get_prop_usb_present(chg, &val);
 	if (rc < 0) {
@@ -3010,20 +3008,6 @@ static int smb5_determine_initial_status(struct smb5 *chip)
 	wdog_bark_irq_handler(0, &irq_data);
 	typec_or_rid_detection_change_irq_handler(0, &irq_data);
 	wdog_snarl_irq_handler(0, &irq_data);
-
-	/*Optimized delay time for find the right OTG interruption time*/
-	if (!val.intval) {
-		while (1) {
-			smblib_read(chg, 0x1508, &val1);
-			smblib_read(chg, 0x1509, &val2);
-			if (val1 == 0x8 && val2 == 0x26)
-				break;
-
-			msleep(20);
-			if (retries++ >= 4)
-				break;
-		}
-	}
 
 	return 0;
 }
