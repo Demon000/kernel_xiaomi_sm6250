@@ -2690,28 +2690,6 @@ static int smb5_init_hw(struct smb5 *chip)
 	if (rc < 0)
 		return rc;
 
-	// Operate the QC2.0 in 5V/9V mode i.e. Disable 12V
-	rc = smblib_masked_write(chg, HVDCP_PULSE_COUNT_MAX_REG,
-				 PULSE_COUNT_QC2P0_12V | PULSE_COUNT_QC2P0_9V,
-				 PULSE_COUNT_QC2P0_9V);
-	if (rc < 0) {
-		dev_err(chg->dev,
-			"Couldn't configure QC2.0 to 9V rc=%d\n", rc);
-		return rc;
-	}
-
-	if (!chg->sec_pl_present) {
-		// Operate the QC3.0 to limit vbus to 6.6v
-		rc = smblib_masked_write(chg, HVDCP_PULSE_COUNT_MAX_REG,
-					 PULSE_COUNT_QC3P0_mask,
-					 0x8);
-		if (rc < 0) {
-			dev_err(chg->dev,
-				"Couldn't configure QC3.0 to 6.6V rc=%d\n", rc);
-			return rc;
-		}
-	}
-
 	/*
 	 * AICL configuration: enable aicl and aicl rerun and based on DT
 	 * configuration enable/disable ADB based AICL and Suspend on collapse.
@@ -3765,9 +3743,6 @@ static void smb5_shutdown(struct platform_device *pdev)
 	if (chg->connector_type == POWER_SUPPLY_CONNECTOR_TYPEC)
 		smblib_masked_write(chg, TYPE_C_MODE_CFG_REG,
 				TYPEC_POWER_ROLE_CMD_MASK, EN_SNK_ONLY_BIT);
-
-	/*fix PD bug.Set 0x1360 = 0x12 when shutdown*/
-	smblib_write(chg, USBIN_ADAPTER_ALLOW_CFG_REG, USBIN_ADAPTER_ALLOW_5V_TO_12V);
 
 	/* force enable and rerun APSD */
 	smblib_apsd_enable(chg, true);
