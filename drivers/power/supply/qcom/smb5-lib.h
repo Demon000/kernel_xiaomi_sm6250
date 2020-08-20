@@ -91,7 +91,6 @@ enum print_reason {
 #define FCC_MAX_QC3P5_VOTER		"FCC_MAX_QC3P5_VOTER"
 #define CLASSA_QC_FCC_VOTER		"CLASSA_QC_FCC_VOTER"
 #define QC_A_CP_ICL_MAX_VOTER		"QC_A_CP_ICL_MAX_VOTER"
-#define QC2_UNSUPPORTED_VOTER		"QC2_UNSUPPORTED_VOTER"
 
 #define BOOST_BACK_STORM_COUNT	3
 #define WEAK_CHG_STORM_COUNT	8
@@ -116,7 +115,6 @@ enum print_reason {
 #define SDP_CURRENT_UA			500000
 #define CDP_CURRENT_UA			1500000
 #define DCP_CURRENT_UA			1600000
-#define QC2_UNSUPPORTED_UA		1500000
 #define HVDCP_CURRENT_UA		3000000
 #define HVDCP_CLASS_B_CURRENT_UA		3100000
 #define HVDCP2_CURRENT_UA		1500000
@@ -603,7 +601,6 @@ struct smb_charger {
 	int			boost_current_ua;
 	int                     qc2_max_pulses;
 	enum qc2_non_comp_voltage qc2_unsupported_voltage;
-	bool			qc2_unsupported;
 	bool			dbc_usbov;
 
 	/* extcon for VBUS / ID notification to USB for uUSB */
