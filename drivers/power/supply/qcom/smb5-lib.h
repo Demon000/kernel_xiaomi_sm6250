@@ -607,9 +607,6 @@ struct smb_charger {
 	int			dcin_uv_count;
 	ktime_t			dcin_uv_last_time;
 	int			last_wls_vout;
-
-	/* workarounds */
-	bool			snk_debug_acc_detected;
 };
 
 int smblib_read(struct smb_charger *chg, u16 addr, u8 *val);

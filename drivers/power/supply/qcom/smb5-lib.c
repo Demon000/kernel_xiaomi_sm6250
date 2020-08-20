@@ -1412,6 +1412,11 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 	/* suspend if 25mA or less is requested */
 	bool suspend = (icl_ua <= USBIN_25MA);
 
+	/* Do not configure ICL from SW for DAM cables */
+	if (smblib_get_prop_typec_mode(chg) ==
+			    POWER_SUPPLY_TYPEC_SINK_DEBUG_ACCESSORY)
+		return 0;
+
 	if (suspend)
 		return smblib_set_usb_suspend(chg, true);
 
@@ -3540,8 +3545,6 @@ static int smblib_get_prop_ufp_mode(struct smb_charger *chg)
 {
 	int rc;
 	u8 stat;
-	union power_supply_propval val = {0, };
-	int usb_present = 0;
 
 	rc = smblib_read(chg, TYPE_C_SNK_STATUS_REG, &stat);
 	if (rc < 0) {
@@ -3559,30 +3562,12 @@ static int smblib_get_prop_ufp_mode(struct smb_charger *chg)
 		return POWER_SUPPLY_TYPEC_SOURCE_HIGH;
 	case SNK_RP_SHORT_BIT:
 		return POWER_SUPPLY_TYPEC_NON_COMPLIANT;
+	case SNK_DAM_500MA_BIT:
+	case SNK_DAM_1500MA_BIT:
+	case SNK_DAM_3000MA_BIT:
+		return POWER_SUPPLY_TYPEC_SINK_DEBUG_ACCESSORY;
 	default:
 		break;
-	}
-
-	/* workaround for scp cable or similar A TO C cables */
-	rc = smblib_read(chg, TYPE_C_SNK_DEBUG_ACC_STATUS_REG, &stat);
-	if (rc < 0) {
-		smblib_err(chg, "Couldn't read TYPE_C_STATUS_1 rc=%d\n", rc);
-		return POWER_SUPPLY_TYPEC_NONE;
-	}
-
-	rc = smblib_get_prop_usb_present(chg, &val);
-	if (rc < 0)
-		smblib_err(chg, "Couldn't get usb present rc = %d\n", rc);
-	else
-		usb_present = val.intval;
-
-	if (chg->snk_debug_acc_detected && usb_present) {
-		return POWER_SUPPLY_TYPEC_SOURCE_DEFAULT;
-	}
-
-	if (stat & SNK_DEBUG_ACC_RPSTD_PRSTD_BIT && usb_present) {
-		chg->snk_debug_acc_detected = true;
-		return POWER_SUPPLY_TYPEC_SOURCE_DEFAULT;
 	}
 
 	return POWER_SUPPLY_TYPEC_NONE;
@@ -5759,7 +5744,6 @@ static void typec_src_removal(struct smb_charger *chg)
 
 	chg->qc3p5_detected = false;
 	typec_src_fault_condition_cfg(chg, false);
-	chg->snk_debug_acc_detected = false;
 	smblib_hvdcp_detect_enable(chg, false);
 	smblib_update_usb_type(chg);
 
