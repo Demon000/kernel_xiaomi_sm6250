@@ -1269,11 +1269,6 @@ static void smblib_uusb_removal(struct smb_charger *chg)
 		vote(chg->cp_disable_votable, SW_THERM_REGULATION_VOTER,
 								false, 0);
 
-	/* reconfigure allowed voltage for HVDCP */
-	rc = smblib_usb_pd_adapter_allowance_override(chg, CONTINUOUS);
-	if (rc < 0)
-		smblib_err(chg, "Couldn't set CONTINUOUS rc=%d\n", rc);
-
 	/* reset USBOV votes and cancel work */
 	cancel_delayed_work_sync(&chg->usbov_dbc_work);
 	vote(chg->awake_votable, USBOV_DBC_VOTER, false, 0);
@@ -5067,21 +5062,10 @@ irqreturn_t usbin_uv_irq_handler(int irq, void *data)
 	struct smb_charger *chg = irq_data->parent_data;
 	struct storm_watch *wdata;
 	const struct apsd_result *apsd = smblib_get_apsd_result(chg);
-	union power_supply_propval pval = {0, };
 	int rc;
 	u8 stat = 0, max_pulses = 0;
 
 	smblib_dbg(chg, PR_INTERRUPT, "IRQ: %s\n", irq_data->name);
-
-	rc = smblib_get_prop_usb_online(chg, &pval);
-	if (rc < 0) {
-		smblib_err(chg, "Couldn't get usb online property rc=%d\n",
-			rc);
-		return rc;
-	}
-
-	if (chg->pd_active == POWER_SUPPLY_PD_ACTIVE && pval.intval)
-		smblib_usb_pd_adapter_allowance_override(chg, CONTINUOUS);
 
 	if ((chg->wa_flags & WEAK_ADAPTER_WA)
 			&& is_storming(&irq_data->storm_data)) {
@@ -5817,7 +5801,6 @@ static void smblib_handle_hvdcp_3p0_auth_done(struct smb_charger *chg,
 				rc = smblib_select_sec_charger(chg,
 					POWER_SUPPLY_CHARGER_SEC_CP,
 					POWER_SUPPLY_CP_HVDCP3P5, false);
-				smblib_usb_pd_adapter_allowance_override(chg, CONTINUOUS);
 			} else if (!chg->qc_class_ab) {
 				rc = smblib_select_sec_charger(chg,
 					POWER_SUPPLY_CHARGER_SEC_CP,
