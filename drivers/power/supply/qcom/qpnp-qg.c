@@ -3619,7 +3619,6 @@ static int qg_post_init(struct qpnp_qg *chip)
 {
 	u8 status = 0;
 	int rc = 0;
-	u8 reg = 0;
 
 	/* disable all IRQs if profile is not loaded */
 	if (!chip->profile_loaded) {
@@ -3645,9 +3644,6 @@ static int qg_post_init(struct qpnp_qg *chip)
 								rc);
 		return rc;
 	}
-
-	reg = 0x80;
-	qg_write(chip, 0x305E, &reg, 1);
 
 	return 0;
 }
