@@ -193,11 +193,6 @@ int smblib_icl_override(struct smb_charger *chg, enum icl_override_mode  mode)
 		icl_override = 0;
 		apsd_override = ICL_OVERRIDE_AFTER_APSD_BIT;
 		break;
-	case SW_OVERRIDE_NO_CC_MODE:
-		usb51_mode = USBIN_MODE_CHG_BIT;
-		icl_override = 1;
-		apsd_override = ICL_OVERRIDE_AFTER_APSD_BIT;
-		break;
 	case HW_AUTO_MODE:
 	default:
 		usb51_mode = USBIN_MODE_CHG_BIT;
@@ -1416,26 +1411,12 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 	enum icl_override_mode icl_override = HW_AUTO_MODE;
 	/* suspend if 25mA or less is requested */
 	bool suspend = (icl_ua <= USBIN_25MA);
-	union power_supply_propval pval = {0, };
 
 	if (suspend)
 		return smblib_set_usb_suspend(chg, true);
 
 	if (icl_ua == INT_MAX)
 		goto set_mode;
-
-	rc = smblib_get_prop_usb_present(chg, &pval);
-	if (rc < 0) {
-		smblib_err(chg, "Couldn't get usb present prop rc = %d\n", rc);
-		goto out;
-	}
-
-	if (chg->typec_mode == POWER_SUPPLY_TYPEC_NONE &&
-		chg->real_charger_type >= POWER_SUPPLY_TYPE_USB && pval.intval == true) {
-		rc = smblib_set_charge_param(chg, &chg->param.usb_icl, icl_ua);
-		icl_override = SW_OVERRIDE_NO_CC_MODE;
-		goto set_mode;
-	}
 
 	/* configure current */
 	if (chg->real_charger_type == POWER_SUPPLY_TYPE_USB
