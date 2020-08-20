@@ -354,11 +354,6 @@ static void *usbpd_ipc_log;
 #define ID_HDR_PRODUCT_AMA	5
 #define ID_HDR_PRODUCT_VPD	6
 
-#define PD_VBUS_MAX_VOLTAGE_LIMIT		9000000
-#define PD_MAX_CURRENT_LIMIT		4000000
-#define MAX_FIXED_PDO_MA		2000
-#define MAX_NON_COMPLIANT_PPS_UA		2000000
-
 static bool check_vsafe0v = true;
 module_param(check_vsafe0v, bool, 0600);
 
@@ -476,9 +471,6 @@ struct usbpd {
 
 	bool		has_dp;
 	u16			ss_lane_svid;
-
-	u32			limit_curr;
-	u32			pd_max_curr_limit;
 
 	/* ext msg support */
 	bool			send_get_src_cap_ext;
@@ -820,14 +812,6 @@ static int pd_select_pdo(struct usbpd *pd, int pdo_pos, int uv, int ua)
 
 		pd->requested_voltage =
 			PD_SRC_PDO_FIXED_VOLTAGE(pdo) * 50 * 1000;
-
-		if (pd->requested_voltage > PD_VBUS_MAX_VOLTAGE_LIMIT)
-			return -ENOTSUPP;
-
-		if (pd->requested_voltage == PD_VBUS_MAX_VOLTAGE_LIMIT
-				&& curr > MAX_FIXED_PDO_MA)
-			curr = MAX_FIXED_PDO_MA;
-
 		pd->rdo = PD_RDO_FIXED(pdo_pos, 0, mismatch, 1, 1, curr / 10,
 				max_current / 10);
 	} else if (type == PD_SRC_PDO_TYPE_AUGMENTED) {
@@ -839,22 +823,7 @@ static int pd_select_pdo(struct usbpd *pd, int pdo_pos, int uv, int ua)
 			return -EINVAL;
 		}
 
-		if (pd->limit_curr && ua > pd->pd_max_curr_limit)
-			ua = pd->pd_max_curr_limit;
-
 		curr = ua / 1000;
-
-		/*
-		 * Workaround for Zimi and similar non-compliant QC4+/PPS chargers:
-		 * if PPS power limit bit is set and QC4+ not compliant PPS chargers,
-		 * hvdcp_opti will set 0mA for these PPS chargers, we treat them as
-		 * maxium 2A PPS chargers to avoid not charging issue.
-		 */
-		if (curr == 0) {
-			ua = MAX_NON_COMPLIANT_PPS_UA;
-			curr = ua / 1000;
-		}
-
 		pd->requested_voltage = uv;
 		pd->rdo = PD_RDO_AUGMENTED(pdo_pos, mismatch, 1, 1,
 				uv / 20000, ua / 50000);
