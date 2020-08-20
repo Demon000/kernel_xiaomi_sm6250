@@ -22,7 +22,6 @@ struct qg_batt_props {
 	int			vbatt_full_mv;
 	int			fastchg_curr_ma;
 	int			qg_profile_version;
-	int			nom_cap_uah;
 };
 
 struct qg_irq_info {
