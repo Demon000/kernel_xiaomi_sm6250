@@ -87,23 +87,9 @@ enum print_reason {
 #define MAIN_FCC_VOTER			"MAIN_FCC_VOTER"
 #define DCIN_AICL_VOTER			"DCIN_AICL_VOTER"
 #define OVERHEAT_LIMIT_VOTER		"OVERHEAT_LIMIT_VOTER"
-#define QC3P5_VOTER				"QC3P5_VOTER"
-#define FCC_MAX_QC3P5_VOTER		"FCC_MAX_QC3P5_VOTER"
-#define CLASSA_QC_FCC_VOTER		"CLASSA_QC_FCC_VOTER"
-#define QC_A_CP_ICL_MAX_VOTER		"QC_A_CP_ICL_MAX_VOTER"
 
 #define BOOST_BACK_STORM_COUNT	3
 #define WEAK_CHG_STORM_COUNT	8
-
-#define VOL_THR_FOR_QC_CLASS_AB		12300000
-#define COMP_FOR_LOW_RESISTANCE_CABLE	100000
-#define QC_CLASS_A_CURRENT_UA		3600000
-#define HVDCP_CLASS_A_MAX_UA		2500000
-#define HVDCP_CLASS_A_FOR_CP_UA		2000000
-
-#define MAX_PULSE			38
-#define MAX_PLUSE_COUNT_ALLOWED		23
-#define HIGH_NUM_PULSE_THR		12
 
 #define VBAT_TO_VRAW_ADC(v)		div_u64((u64)v * 1000000UL, 194637UL)
 
@@ -116,14 +102,9 @@ enum print_reason {
 #define CDP_CURRENT_UA			1500000
 #define DCP_CURRENT_UA			1600000
 #define HVDCP_CURRENT_UA		3000000
-#define HVDCP_CLASS_B_CURRENT_UA		3100000
-#define HVDCP2_CURRENT_UA		1500000
 #define TYPEC_DEFAULT_CURRENT_UA	900000
 #define TYPEC_MEDIUM_CURRENT_UA		1500000
 #define TYPEC_HIGH_CURRENT_UA		3000000
-#define HVDCP3P0_18W_CURRENT_UA		3600000
-#define HVDCP3P5_40W_CURRENT_UA		4500000
-#define HVDCP_START_CURRENT_UA		1000000
 #define DCIN_ICL_MIN_UA			100000
 #define DCIN_ICL_MAX_UA			1500000
 #define DCIN_ICL_STEP_UA		100000
@@ -631,21 +612,6 @@ struct smb_charger {
 
 	/* workarounds */
 	bool			snk_debug_acc_detected;
-
-	/* qc3p5 authentication */
-	bool			qc3p5_auth_complete;
-	bool			qc3p5_authenticated;
-	bool			qc3p5_authentication_started;
-	int			qc3p5_power_limit_w;
-
-	/*  qc3 vbus rise */
-	struct delayed_work	raise_qc3_vbus_work;
-	bool			qc_class_ab;
-	bool			is_qc_class_a;
-	bool			is_qc_class_b;
-	bool			raise_vbus_to_detect;
-	bool			detect_low_power_qc3_charger;
-	bool			high_vbus_detected;
 };
 
 #define INDIA_HWVERSION			1
