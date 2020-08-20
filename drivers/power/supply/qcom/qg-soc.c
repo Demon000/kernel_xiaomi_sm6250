@@ -135,7 +135,7 @@ exit_soc_scale:
 static int qg_process_tcss_soc(struct qpnp_qg *chip, int sys_soc)
 {
 	int rc, ibatt_diff = 0, ibat_inc_hyst = 0;
-	int qg_iterm_ua;
+	int qg_iterm_ua = (-1 * chip->dt.iterm_ma * 1000);
 	int soc_ibat, wt_ibat, wt_sys;
 	union power_supply_propval prop = {0, };
 
@@ -147,15 +147,6 @@ static int qg_process_tcss_soc(struct qpnp_qg *chip, int sys_soc)
 
 	if (chip->sys_soc >= QG_MAX_SOC && chip->soc_tcss >= QG_MAX_SOC)
 		goto exit_soc_scale;
-
-	rc = power_supply_get_property(chip->qg_psy,
-			POWER_SUPPLY_PROP_BATT_FULL_CURRENT, &prop);
-	if (rc < 0) {
-		pr_err("failed to get full_current, rc = %d\n", rc);
-		goto exit_soc_scale;
-	}
-
-	qg_iterm_ua = -1 * prop.intval;
 
 	rc = power_supply_get_property(chip->batt_psy,
 			POWER_SUPPLY_PROP_HEALTH, &prop);
