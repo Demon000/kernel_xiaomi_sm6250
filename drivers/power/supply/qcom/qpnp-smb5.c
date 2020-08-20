@@ -459,7 +459,9 @@ static int smb5_parse_dt(struct smb5 *chip)
 	rc = of_property_read_u32(node,
 				"qcom,otg-cl-ua", &chg->otg_cl_ua);
 	if (rc < 0)
-		chg->otg_cl_ua = MICRO_1PA;
+		chg->otg_cl_ua =
+			(chip->chg.chg_param.smb_version == PMI632_SUBTYPE)
+						? MICRO_1PA : MICRO_3PA;
 
 	rc = of_property_read_u32(node, "qcom,chg-term-src",
 			&chip->dt.term_current_src);
