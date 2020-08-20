@@ -79,9 +79,6 @@ struct qg_dt {
 	bool			multi_profile_load;
 	bool			tcss_enable;
 	bool			bass_enable;
-
-	/* battery verification */
-	bool			batt_verify_enable;
 };
 
 struct qg_esr_data {
@@ -206,9 +203,6 @@ struct qpnp_qg {
 	struct cycle_counter	*counter;
 	/* ttf */
 	struct ttf		*ttf;
-
-	/* battery verification */
-	struct power_supply *max_verify_psy;
 };
 
 struct ocv_all {
