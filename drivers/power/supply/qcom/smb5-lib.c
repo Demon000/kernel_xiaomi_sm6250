@@ -1420,7 +1420,6 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 
 	/* configure current */
 	if (chg->real_charger_type == POWER_SUPPLY_TYPE_USB
-		&& (icl_ua <= USBIN_500MA)
 		&& (chg->typec_legacy
 		|| chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_DEFAULT
 		|| chg->connector_type == POWER_SUPPLY_CONNECTOR_MICRO_USB)) {
@@ -1432,10 +1431,10 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 	} else {
 		/*
 		 * Try USB 2.0/3,0 option first on USB path when maximum input
-		 * current limit is 100mA or below for better accuracy; in case
+		 * current limit is 500mA or below for better accuracy; in case
 		 * of error, proceed to use USB high-current mode.
 		 */
-		if (icl_ua <= USBIN_100MA) {
+		if (icl_ua <= USBIN_500MA) {
 			rc = set_sdp_current(chg, icl_ua);
 			if (rc >= 0)
 				goto unsuspend;
