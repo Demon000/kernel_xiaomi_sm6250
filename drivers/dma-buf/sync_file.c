@@ -407,9 +407,10 @@ static long sync_file_ioctl_fence_info(struct sync_file *sync_file,
 				       unsigned long arg)
 {
 	struct sync_file_info info;
-	struct sync_fence_info fence_info;
+	struct sync_fence_info *fence_info = NULL;
 	struct dma_fence **fences;
-	int num_fences, i;
+	__u32 size;
+	int num_fences, ret, i;
 
 	if (copy_from_user(&info, (void __user *)arg, sizeof(info)))
 		return -EFAULT;
@@ -435,16 +436,20 @@ static long sync_file_ioctl_fence_info(struct sync_file *sync_file,
 	if (info.num_fences < num_fences)
 		return -EINVAL;
 
-	memset(&fence_info, 0, sizeof(fence_info));
+	size = num_fences * sizeof(*fence_info);
+	fence_info = kzalloc(size, GFP_KERNEL);
+	if (!fence_info)
+		return -ENOMEM;
 
 	for (i = 0; i < num_fences; i++) {
-		int status = sync_fill_fence_info(fences[i], &fence_info);
+		int status = sync_fill_fence_info(fences[i], &fence_info[i]);
 		info.status = info.status <= 0 ? info.status : status;
+	}
 
-		if (copy_to_user(u64_to_user_ptr(info.sync_fence_info +
-				i * sizeof(fence_info)), &fence_info,
-				sizeof(fence_info)))
-			return -EFAULT;
+	if (copy_to_user(u64_to_user_ptr(info.sync_fence_info), fence_info,
+			 size)) {
+		ret = -EFAULT;
+		goto out;
 	}
 
 no_fences:
@@ -452,9 +457,14 @@ no_fences:
 	info.num_fences = num_fences;
 
 	if (copy_to_user((void __user *)arg, &info, sizeof(info)))
-		return -EFAULT;
+		ret = -EFAULT;
+	else
+		ret = 0;
 
-	return 0;
+out:
+	kfree(fence_info);
+
+	return ret;
 }
 
 static long sync_file_ioctl(struct file *file, unsigned int cmd,
