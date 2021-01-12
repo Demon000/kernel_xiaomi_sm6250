@@ -28,7 +28,7 @@ config AIGOV
 	default n
 	bool "A governor which using ai predicted info as input"
 	
-config DEFRAG_HELPER
+config DEFRAG
 	default n
 	bool "Oneplus CoreTech helper, used for defrag module"
 
