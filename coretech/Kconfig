@@ -1,11 +1,6 @@
 config OPCHAIN
 	default n
 	bool "Oneplus CoreTech helper, used for opchain module"
-config DEFRAG
-	default n
-	bool "anti-defragment feature"
-	help
-	 anti-defragment feature.
 config HOUSTON
 	default n
 	bool "houston rocket play your temperature guard"
@@ -32,4 +27,19 @@ config CONTROL_CENTER
 config AIGOV
 	default n
 	bool "A governor which using ai predicted info as input"
+	
+config DEFRAG_HELPER
+	default n
+	bool "Oneplus CoreTech helper, used for defrag module"
+
+config CRPL_HELPER
+	default n
+	bool "Oneplus CoreTech helper, used for crpl module"
+
+config ADJ_CHAIN
+	default n
+	bool "Chain task adj for victim select"
+	help
+	 To chain task adj for any purpose
+
 
