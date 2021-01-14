@@ -478,7 +478,7 @@ static void sugov_update_single(struct update_util_data *hook, u64 time,
 		sugov_get_util(&util, &max, sg_cpu->cpu);
 		if (sg_policy->max != max) {
 			sg_policy->max = max;
-			hs_util = freq_to_util(sg_policy,
+			hs_util = freq_to_util_aigov(sg_policy,
 					sg_policy->tunables->hispeed_freq);
 			hs_util = mult_frac(hs_util, TARGET_LOAD, 100);
 			sg_policy->hispeed_util = hs_util;
@@ -593,7 +593,7 @@ static void sugov_update_shared(struct update_util_data *hook, u64 time,
 
 	if (sg_policy->max != max) {
 		sg_policy->max = max;
-		hs_util = freq_to_util(sg_policy,
+		hs_util = freq_to_util_aigov(sg_policy,
 					sg_policy->tunables->hispeed_freq);
 		hs_util = mult_frac(hs_util, TARGET_LOAD, 100);
 		sg_policy->hispeed_util = hs_util;
@@ -782,7 +782,7 @@ static ssize_t hispeed_freq_store(struct gov_attr_set *attr_set,
 	tunables->hispeed_freq = val;
 	list_for_each_entry(sg_policy, &attr_set->policy_list, tunables_hook) {
 		raw_spin_lock_irqsave(&sg_policy->update_lock, flags);
-		hs_util = freq_to_util(sg_policy,
+		hs_util = freq_to_util_aigov(sg_policy,
 					sg_policy->tunables->hispeed_freq);
 		hs_util = mult_frac(hs_util, TARGET_LOAD, 100);
 		sg_policy->hispeed_util = hs_util;
