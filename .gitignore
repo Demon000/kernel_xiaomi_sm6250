@@ -131,3 +131,7 @@ AnyKernel2/
 clang-llvm/
 *.sh
 error.log
+clang*
+gcc*
+*.zip
+AnyKernel3/
