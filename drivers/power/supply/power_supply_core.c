@@ -22,6 +22,10 @@
 #include <linux/power_supply.h>
 #include <linux/thermal.h>
 #include "power_supply.h"
+#ifdef CONFIG_HOUSTON
+#include <oneplus/houston/houston_helper.h>
+#endif
+
 #ifdef CONFIG_DEBUG_USB
 #undef dev_dbg
 #define dev_dbg dev_err
@@ -935,6 +939,9 @@ __power_supply_register(struct device *parent,
 	queue_delayed_work(system_power_efficient_wq,
 			   &psy->deferred_register_work,
 			   POWER_SUPPLY_DEFERRED_REGISTER_TIME);
+#ifdef CONFIG_HOUSTON
+	ht_register_power_supply(psy);
+#endif
 
 	return psy;
 
