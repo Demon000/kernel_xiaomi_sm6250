@@ -4852,6 +4852,7 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
 		" unevictable:%lu dirty:%lu writeback:%lu unstable:%lu\n"
 		" slab_reclaimable:%lu slab_unreclaimable:%lu\n"
 		" mapped:%lu shmem:%lu pagetables:%lu bounce:%lu\n"
+		" ramboost:%lu\n"
 		" free:%lu free_pcp:%lu free_cma:%lu\n",
 		global_node_page_state(NR_ACTIVE_ANON),
 		global_node_page_state(NR_INACTIVE_ANON),
@@ -4870,6 +4871,7 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
 		global_zone_page_state(NR_PAGETABLE),
 		global_zone_page_state(NR_BOUNCE),
 		global_zone_page_state(NR_FREE_PAGES),
+		UID_LRU_SIZE,
 		free_pcp,
 		global_zone_page_state(NR_FREE_CMA_PAGES));
 
@@ -4953,6 +4955,10 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
 			" bounce:%lukB"
 			" free_pcp:%lukB"
 			" local_pcp:%ukB"
+			/* bin.zhong@ASTI, 2019/10/11,
+			 * add for CONFIG_SMART_BOOST
+			 */
+			" ramboost:%lukB"
 			" free_cma:%lukB"
 			"\n",
 			zone->name,
@@ -4974,6 +4980,10 @@ void show_free_areas(unsigned int filter, nodemask_t *nodemask)
 			K(zone_page_state(zone, NR_BOUNCE)),
 			K(free_pcp),
 			K(this_cpu_read(zone->pageset->pcp.count)),
+			/* bin.zhong@ASTI, 2019/10/11,
+			 * add for CONFIG_SMART_BOOST
+			 */
+			K(ZONE_UID_LRU_SIZE(zone)),
 			K(zone_page_state(zone, NR_FREE_CMA_PAGES)));
 		printk("lowmem_reserve[]:");
 		for (i = 0; i < MAX_NR_ZONES; i++)

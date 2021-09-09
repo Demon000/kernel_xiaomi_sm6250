@@ -149,6 +149,9 @@ enum zone_stat_item {
 #if IS_ENABLED(CONFIG_ZSMALLOC)
 	NR_ZSPAGES,		/* allocated in zsmalloc */
 #endif
+#ifdef CONFIG_SMART_BOOST
+	NR_ZONE_UID_LRU,
+#endif
 	NR_FREE_CMA_PAGES,
 	NR_VM_ZONE_STAT_ITEMS };
 
@@ -236,6 +239,15 @@ struct zone_reclaim_stat {
 	unsigned long		recent_rotated[2];
 	unsigned long		recent_scanned[2];
 };
+#ifdef CONFIG_SMART_BOOST
+struct uid_node {
+	struct uid_node __rcu *next;
+	uid_t uid;
+	unsigned int hot_count;
+	struct list_head  page_cache_list;
+	struct rcu_head rcu;
+};
+#endif
 
 struct lruvec {
 	struct list_head		lists[NR_LRU_LISTS];
@@ -246,6 +258,9 @@ struct lruvec {
 	unsigned long			refaults;
 #ifdef CONFIG_MEMCG
 	struct pglist_data *pgdat;
+#endif
+#ifdef CONFIG_SMART_BOOST
+	struct uid_node **uid_hash;
 #endif
 };
 
